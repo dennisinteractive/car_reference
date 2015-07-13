@@ -476,37 +476,28 @@ function car_reference_field_is_empty($item, $field) {
  * Form element validate handler for car reference autocomplete element.
  */
 function car_reference_autocomplete_validate($element, &$form_state) {
-
   // Autocomplete widgets do not send their tids in the form, so we must detect
   // them here and process them independently.
   $value = array();
 
-  if ($term = $element['#value']) {
-    // Store the raw value to use for validation.
-    $value['raw_input'] = $term;
-
+  $field_value = trim($element['#value']);
+  if (!empty($field_value)) {
     // Collect candidate vocabularies.
     $field = field_widget_field($element, $form_state);
     $vocabularies = array();
 
-    // Use choose_from settings for field instance.
-    $field_instance = field_info_instance($element['#entity_type'], $element['#field_name'], $element['#bundle']);
-    // Reverse array to get edition first.
-    $choose_from = array_reverse($field_instance['settings']['choose_from'], TRUE);
-    foreach ($choose_from as $machine_name => $allowed) {
-      if ($allowed) {
-        if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => trim($term), 'vid' => $vocabulary->vid))) {
-            $term = array_pop($possibilities);
-            break;
-          }
-        }
+    foreach ($field['settings']['allowed_values'] as $tree) {
+      if ($vocabulary = taxonomy_vocabulary_machine_name_load($tree['vocabulary'])) {
+        $vocabularies[$vocabulary->vid] = $vocabulary;
       }
     }
 
-    if (isset($term->vocabulary_machine_name)) {
+    if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => trim($field_value), 'vid' => array_keys($vocabularies)))) {
+      $term = array_pop($possibilities);
+
       if ($term->vocabulary_machine_name == $field['settings']['allowed_values']['edition_vocabulary']['vocabulary']) {
         $value['edition_tid'] = $term->tid;
+        dsm($term, 'the $term');
         if ($model = taxonomy_term_load($term->field_model[LANGUAGE_NONE][0]['tid'])) {
           $value['model_tid'] = $model->tid;
           $value['make_tid'] = $model->field_make[LANGUAGE_NONE][0]['tid'];
@@ -520,9 +511,14 @@ function car_reference_autocomplete_validate($element, &$form_state) {
         $value['make_tid'] = $term->tid;
       }
     }
+    else {
+      if (empty($element['#required'])) {
+        drupal_set_message(t('Invalid Car: :car', array(':car' => $element['#title'])), 'error');
+      }
+    }
   }
 
-  // Autocomplete uses a fake element so the values need to be added
+  // Autocomplete uses a fake element so the values needs to be added
   // to the delta and not the element.
   array_pop($element['#parents']);
 
@@ -542,46 +538,36 @@ function car_reference_autocomplete_validate($element, &$form_state) {
  *   The value is not part of the list of allowed values.
  */
 function car_reference_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
+  // Don't validate form when configuring field on the field UI.
+  // When editing a node, $entity will be a class.
+  if (is_null($entity)) {
+    return;
+  }
 
   foreach ($items as $delta => $item) {
     $validate = TRUE;
 
-    // Validation fails if some random value is input.
-    if (!isset($item['make_tid'])) {
-      $validate = FALSE;
-      // If the user hasn't provided an input value, check if that is allowed.
-      if (!isset($item['raw_input'])) {
-        // Don't force default values on field instance settings form.
-        if (empty($entity_type)) {
+    // Get the vocabularies from the field configuration.
+    $vocabularies = array();
+    foreach ($field['settings']['allowed_values'] as $value) {
+      $vocabularies[] = $value['vocabulary'];
+    }
+
+    // Reverse and loop the vocabularies so that the most specific part
+    // of the field is checked first. If the condition is satisfied,
+    // we don't need to check the other items.
+    foreach (array_reverse($vocabularies) as $vocabulary_name) {
+      if (in_array($vocabulary_name, $instance['settings']['choose_from'], TRUE)) {
+        $key = $vocabulary_name . '_tid';
+        if (isset($item[$key]) && $term = taxonomy_term_load($item[$key])) {
           $validate = TRUE;
+          break;
         }
-        // Don't force values when field is not required.
-        if (!$instance['required']) {
-          $validate = TRUE;
+        else {
+          if ($instance['required']) {
+            $validate = FALSE;
+          }
         }
-      }
-    }
-    if (isset($item['make_tid']) && $term = taxonomy_term_load($item['make_tid'])) {
-      $validate = FALSE;
-
-      if (in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], TRUE)) {
-        $validate = TRUE;
-      }
-    }
-
-    if (isset($item['model_tid']) && $term = taxonomy_term_load($item['model_tid'])) {
-      $validate = FALSE;
-
-      if (in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], TRUE)) {
-        $validate = TRUE;
-      }
-    }
-
-    if (isset($item['edition_tid']) && $term = taxonomy_term_load($item['edition_tid'])) {
-      $validate = FALSE;
-
-      if (in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], TRUE)) {
-        $validate = TRUE;
       }
     }
 
