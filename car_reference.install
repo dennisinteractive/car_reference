@@ -1,0 +1,45 @@
+<?php
+
+/**
+ * Implements hook_field_schema().
+ */
+function car_reference_field_schema($field) {
+  return array(
+    'columns' => array(
+      'make_tid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+      ),
+      'model_tid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+      ),
+      'edition_tid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+      ),
+    ),
+    'indexes' => array(
+      'make_tid' => array('make_tid'),
+      'model_tid' => array('model_tid'),
+      'edition_tid' => array('edition_tid'),
+    ),
+    'foreign keys' => array(
+      'make_tid' => array(
+        'table' => 'taxonomy_term_data',
+        'columns' => array('make_tid' => 'tid'),
+      ),
+      'model_tid' => array(
+        'table' => 'taxonomy_term_data',
+        'columns' => array('model_tid' => 'tid'),
+      ),
+      'edition_tid' => array(
+        'table' => 'taxonomy_term_data',
+        'columns' => array('edition_tid' => 'tid'),
+      ),
+    ),
+  );
+}
