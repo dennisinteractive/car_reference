@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * @file
+ * Install hooks for the project.
+ */
+
+/**
  * Implements hook_field_schema().
  */
 function car_reference_field_schema($field) {

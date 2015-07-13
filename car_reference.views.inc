@@ -1,7 +1,8 @@
 <?php
 
 /**
- * @file Views functions for module.
+ * @file
+ * Views functions for module.
  */
 
 /**

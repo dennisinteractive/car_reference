@@ -1,4 +1,8 @@
 <?php
+/**
+ * @file
+ * Main file for Car reference field module.
+ */
 
 /**
  * Implements hook_menu().
@@ -26,13 +30,9 @@ function car_reference_views_api() {
 
 /**
  * Implements hook_field_info().
- *
- * Field settings:
- *
  */
 function car_reference_field_info() {
   return array(
-
     'car_reference' => array(
       'label' => t('Car reference'),
       'description' => t('This field stores a reference to a make, model and edition taxonomy term.'),
@@ -55,13 +55,16 @@ function car_reference_field_info() {
         ),
       ),
       'instance_settings' => array(
-        //which vocabs to return result from, for autocomplete widget
-        'choose_from' => array('make' => 'make', 'model' => 'model', 'edition' => 'edition'),
+        // Which vocabs to return result from, for autocomplete widget.
+        'choose_from' => array(
+          'make' => 'make',
+          'model' => 'model',
+          'edition' => 'edition',
+        ),
       ),
       // Support hook_entity_property_info() from contrib "Entity API".
       'property_type' => 'taxonomy_term',
     ),
-
   );
 }
 
@@ -103,32 +106,39 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
  * Implements hook_field_instance_settings_form().
  */
 function car_reference_field_instance_settings_form($field, $instance) {
-  //Option to restrict which vocabs can be selected. This is used for the autocomplete widget to restrict results.
+  // Option to restrict which vocabs can be selected.
+  // This is used for the autocomplete widget to restrict results.
   if ($field['type'] == 'car_reference') {
-    //prepare default values
-    foreach($instance['settings']['choose_from'] as $vocab) {
+    // Prepare default values.
+    foreach ($instance['settings']['choose_from'] as $vocab) {
       if ($vocab) {
         $defaults[] = $vocab;
       }
     }
     $form['choose_from'] = array(
       '#type' => 'checkboxes',
-      '#options' => array('make' => t('Make'), 'model' => t('Model'), 'edition' => t('Edition')),
+      '#options' => array(
+        'make' => t('Make'),
+        'model' => t('Model'),
+        'edition' => t('Edition'),
+      ),
       '#title' => t('Choose which vocab users can choose from'),
       '#description' => t('Please select at least one vocab to choose results from. Currently only used for autocomplete widget.'),
       '#default_value' => $defaults,
       '#element_validate' => array('_choose_from_vocab_validate'),
     );
   }
+
   return $form;
 }
 
 /**
  * Validation function for 'choose_from' car reference instance setting.
- * @see car_reference_field_instance_settings_form().
+ *
+ * @see car_reference_field_instance_settings_form()
  */
 function _choose_from_vocab_validate($element, &$form_state, $form) {
-  //Ensure at least one vocab is chosen.
+  // Ensure at least one vocab is chosen.
   if (empty($element['#value'])) {
     form_error($element, t('Please select at least one vocab.'));
   }
@@ -210,24 +220,24 @@ function car_reference_field_formatter_settings_form($field, $instance, $view_mo
 function car_reference_field_formatter_settings_summary($field, $instance, $view_mode) {
   $display = $instance['display'][$view_mode];
   $settings = $instance['display'][$view_mode]['settings'];
-  $entity_info = entity_get_info('taxonomy_term');
-
+  // $entity_info = entity_get_info('taxonomy_term');
+  $summary = array();
   switch ($display['type']) {
     case 'car_reference_entity':
-        $summary = array(
-          '#type' => 'item',
-          '#title' => t('Settings'),
-          '#markup' => t('View mode: %mode Vocabulary: %vocab',
-                          array(
-                            '%mode' => $settings['view_mode'],
-                            '%vocab' => $settings['vocabulary']
-                          )
-                        ),
-        );
+      $summary = array(
+        '#type' => 'item',
+        '#title' => t('Settings'),
+        '#markup' => t('View mode: %mode Vocabulary: %vocab', array(
+          '%mode' => $settings['view_mode'],
+          '%vocab' => $settings['vocabulary'],
+          )
+        ),
+      );
 
-        return drupal_render($summary);
       break;
   }
+
+  return drupal_render($summary);
 }
 
 /**
@@ -302,13 +312,14 @@ function car_reference_field_formatter_prepare_view($entity_type, $entities, $fi
   if ($tids) {
     $terms = taxonomy_term_load_multiple($tids);
 
-    // Iterate through the fieldable entities again to attach the loaded term data.
+    // Iterate through the fieldable entities to attach the loaded term data.
     foreach ($entities as $id => $entity) {
       $rekey = FALSE;
 
       foreach ($items[$id] as $delta => $item) {
-        // If the vocabulary was set in the field formatter settings, then load the term. Otherwise skip to the regular logic.
-        $setting_vocabulary = empty($displays[$id]['settings']['vocabulary']) ? false : $displays[$id]['settings']['vocabulary'];
+        // If the vocabulary was set in the field formatter settings,
+        // then load the term. Otherwise skip to the regular logic.
+        $setting_vocabulary = empty($displays[$id]['settings']['vocabulary']) ? FALSE : $displays[$id]['settings']['vocabulary'];
         if (!empty($setting_vocabulary) && isset($terms[$item[$setting_vocabulary . '_tid']])) {
           $items[$id][$delta]['taxonomy_term'] = $terms[$item[$setting_vocabulary . '_tid']];
           continue;
@@ -396,12 +407,12 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
     case 'car_reference_tids':
 
       $element['make_tid'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Make'),
-      '#default_value' => isset($items[$delta]['make_tid']) ? $items[$delta]['make_tid'] : NULL,
-      '#size' => $instance['widget']['settings']['size'],
-      '#maxlength' => $field['settings']['max_length'],
-      '#attributes' => array('class' => array('text-full')),
+        '#type' => 'textfield',
+        '#title' => t('Make'),
+        '#default_value' => isset($items[$delta]['make_tid']) ? $items[$delta]['make_tid'] : NULL,
+        '#size' => $instance['widget']['settings']['size'],
+        '#maxlength' => $field['settings']['max_length'],
+        '#attributes' => array('class' => array('text-full')),
       ) + $base;
 
       $element['model_tid'] = array(
@@ -436,10 +447,10 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         $term = isset($items[$delta]['taxonomy_term']) ? $items[$delta]['taxonomy_term'] : taxonomy_term_load($items[$delta]['make_tid']);
       }
 
-      // Use a fake element to store the term name value
+      // Use a fake element to store the term name value.
       $element['taxonomy_term'] = array(
         '#type' => 'textfield',
-        '#default_value' => (isset($term->name))?$term->name:'',
+        '#default_value' => (isset($term->name)) ? $term->name : '',
         '#autocomplete_path' => $instance['widget']['settings']['autocomplete_path'] . '/' . $instance['entity_type'] . '/' . $instance['bundle'] . '/' . $field['field_name'],
         '#size' => $instance['widget']['settings']['size'],
         '#maxlength' => 1024,
@@ -452,7 +463,7 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
 }
 
 /**
- * Impliments hook_field_is_empty()
+ * Impliments hook_field_is_empty().
  */
 function car_reference_field_is_empty($item, $field) {
   if (!is_array($item) || empty($item['make_tid']) || (string) $item['make_tid'] == '0') {
@@ -496,7 +507,7 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     if (isset($term->vocabulary_machine_name)) {
       if ($term->vocabulary_machine_name == $field['settings']['allowed_values']['edition_vocabulary']['vocabulary']) {
         $value['edition_tid'] = $term->tid;
-        if($model = taxonomy_term_load($term->field_model[LANGUAGE_NONE][0]['tid'])) {
+        if ($model = taxonomy_term_load($term->field_model[LANGUAGE_NONE][0]['tid'])) {
           $value['model_tid'] = $model->tid;
           $value['make_tid'] = $model->field_make[LANGUAGE_NONE][0]['tid'];
         }
@@ -511,7 +522,8 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     }
   }
 
-  // autocomplete uses a fake element so the values need to be added to the delta and not the element
+  // Autocomplete uses a fake element so the values need to be added
+  // to the delta and not the element.
   array_pop($element['#parents']);
 
   form_set_value($element, $value, $form_state);
@@ -526,16 +538,16 @@ function car_reference_autocomplete_validate($element, &$form_state) {
  * Confirm that terms entered as values meet at least one of these conditions.
  *
  * Possible error codes:
- * - 'taxonomy_term_illegal_value': The value is not part of the list of allowed values.
+ * - 'taxonomy_term_illegal_value':
+ *   The value is not part of the list of allowed values.
  */
 function car_reference_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
 
   foreach ($items as $delta => $item) {
-
     $validate = TRUE;
 
-    //validation fails if some random value is input.
-    if(!isset($item['make_tid'])){
+    // Validation fails if some random value is input.
+    if (!isset($item['make_tid'])) {
       $validate = FALSE;
       // If the user hasn't provided an input value, check if that is allowed.
       if (!isset($item['raw_input'])) {
@@ -544,7 +556,7 @@ function car_reference_field_validate($entity_type, $entity, $field, $instance, 
           $validate = TRUE;
         }
         // Don't force values when field is not required.
-        if(!$instance['required']){
+        if (!$instance['required']) {
           $validate = TRUE;
         }
       }
@@ -552,7 +564,7 @@ function car_reference_field_validate($entity_type, $entity, $field, $instance, 
     if (isset($item['make_tid']) && $term = taxonomy_term_load($item['make_tid'])) {
       $validate = FALSE;
 
-      if(in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], true)){
+      if (in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], TRUE)) {
         $validate = TRUE;
       }
     }
@@ -560,7 +572,7 @@ function car_reference_field_validate($entity_type, $entity, $field, $instance, 
     if (isset($item['model_tid']) && $term = taxonomy_term_load($item['model_tid'])) {
       $validate = FALSE;
 
-      if(in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], true)){
+      if (in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], TRUE)) {
         $validate = TRUE;
       }
     }
@@ -568,7 +580,7 @@ function car_reference_field_validate($entity_type, $entity, $field, $instance, 
     if (isset($item['edition_tid']) && $term = taxonomy_term_load($item['edition_tid'])) {
       $validate = FALSE;
 
-      if(in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], true)){
+      if (in_array($term->vocabulary_machine_name, $instance['settings']['choose_from'], TRUE)) {
         $validate = TRUE;
       }
     }
@@ -580,7 +592,6 @@ function car_reference_field_validate($entity_type, $entity, $field, $instance, 
       );
     }
   }
-
 }
 
 /**
@@ -607,7 +618,7 @@ function car_reference_entity_update($entity, $type) {
  * The index lists all terms that are related to a given node entity, and is
  * therefore maintained at the entity level.
  *
- * @param $node
+ * @param object $node
  *   The node object.
  */
 function car_reference_build_node_index($node) {
@@ -618,12 +629,12 @@ function car_reference_build_node_index($node) {
     // If a node property is not set in the node object when node_save() is
     // called, the old value from $node->original is used.
     if (!empty($node->original)) {
-      $status = (int)(!empty($node->status) || (!isset($node->status) && !empty($node->original->status)));
-      $sticky = (int)(!empty($node->sticky) || (!isset($node->sticky) && !empty($node->original->sticky)));
+      $status = (int) (!empty($node->status) || (!isset($node->status) && !empty($node->original->status)));
+      $sticky = (int) (!empty($node->sticky) || (!isset($node->sticky) && !empty($node->original->sticky)));
     }
     else {
-      $status = (int)(!empty($node->status));
-      $sticky = (int)(!empty($node->sticky));
+      $status = (int) (!empty($node->status));
+      $sticky = (int) (!empty($node->sticky));
     }
   }
   // We only maintain the taxonomy index for published nodes.
@@ -662,7 +673,8 @@ function car_reference_build_node_index($node) {
     }
     // Insert index entries for all the node's terms.
     if (!empty($tid_all)) {
-      $query = db_insert('taxonomy_index')->fields(array('nid', 'tid', 'sticky', 'created'));
+      $query = db_insert('taxonomy_index')
+        ->fields(array('nid', 'tid', 'sticky', 'created'));
       foreach ($tid_all as $tid) {
         $query->values(array(
           'nid' => $node->nid,
@@ -675,7 +687,6 @@ function car_reference_build_node_index($node) {
     }
   }
 }
-
 
 /**
  * Implements hook_token_info().
@@ -719,11 +730,6 @@ function car_reference_token_info() {
 }
 /**
  * Implements hook_tokens().
- * @param string $type
- * @param array $tokens
- * @param array $data
- * @param array $options
- * @return array $replacements
  */
 function car_reference_tokens($type, $tokens, array $data = array(), array $options = array()) {
   $replacements = array();
@@ -738,30 +744,32 @@ function car_reference_tokens($type, $tokens, array $data = array(), array $opti
             $replacements[$original] = car_reference_get_make_name($node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid']);
           }
           break;
+
         case 'car_reference_make_term_alias':
           if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid'])) {
             $replacements[$original] = drupal_lookup_path('alias', 'taxonomy/term/' . $node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid']);
           }
           break;
+
         case 'car_reference_model_name':
         case 'car_reference_model_name_url':
           if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid'])) {
             $replacements[$original] = car_reference_get_model_name($node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid']);
           }
           break;
+
         case 'car_reference_model_term_alias':
           if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid'])) {
             $replacements[$original] = drupal_lookup_path('alias', 'taxonomy/term/' . $node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid']);
           }
           break;
+
         case 'car_reference_edition_name':
         case 'car_reference_edition_name_url':
           if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['edition_tid'])) {
             $replacements[$original] = car_reference_get_edition_name($node->field_primary_car_reference[LANGUAGE_NONE][0]['edition_tid']);
           }
           break;
-
-
       }
 
       if (!empty($replacements[$original]) && ($name == 'car_reference_edition_name_url' || $name == 'car_reference_model_name_url' || $name == 'car_reference_make_name_url')) {
@@ -770,15 +778,16 @@ function car_reference_tokens($type, $tokens, array $data = array(), array $opti
         }
         $replacements[$original] = pathauto_cleanstring($replacements[$original]);
       }
-
     }
   }
   return $replacements;
 }
 
 /**
- * Returns a model name given a model tid
+ * Returns a model name given a model tid.
+ *
  * @param string $tid
+ *   Taxonomy term ID.
  */
 function car_reference_get_model_name($tid) {
   $query = db_select('field_data_field_short_name', 'mn')->fields('mn', array('field_short_name_value'));
@@ -787,8 +796,10 @@ function car_reference_get_model_name($tid) {
 }
 
 /**
- * Returns an edition name given an edition tid
+ * Returns an edition name given an edition tid.
+ *
  * @param string $tid
+ *   Taxonomy term ID.
  */
 function car_reference_get_edition_name($tid) {
   $query = db_select('field_data_field_short_name', 'en')->fields('en', array('field_short_name_value'));
@@ -797,8 +808,10 @@ function car_reference_get_edition_name($tid) {
 }
 
 /**
- * Returns a make name given a make tid
+ * Returns a make name given a make tid.
+ *
  * @param string $tid
+ *   Taxonomy term ID.
  */
 function car_reference_get_make_name($tid) {
   if ($term = taxonomy_term_load($tid)) {
@@ -810,6 +823,7 @@ function car_reference_get_make_name($tid) {
  * Returns the key value pairs of the given tids for use in adtags etc.
  *
  * @param array $tids
+ *   Taxonomy term IDs.
  */
 function car_reference_get_key_value_pairs($tids) {
   $kvp = array();
@@ -820,9 +834,10 @@ function car_reference_get_key_value_pairs($tids) {
       case 'model':
         $kvp[$term->vocabulary_machine_name][] = $term->name;
         break;
+
       case 'edition':
         $kvp[$term->vocabulary_machine_name][] = $term->name;
-        // Get the body style from the edition name
+        // Get the body style from the edition name.
         $field = field_get_items('taxonomy_term', $term, 'field_short_name');
         $kvp['bodystyle'][] = $field[0]['value'];
         break;

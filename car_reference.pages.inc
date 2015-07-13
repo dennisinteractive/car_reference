@@ -25,14 +25,17 @@
  *     "red fish, blue moon": "blue moon",
  *   };
  * @endcode
- *
- * @param $field_name
- *   The name of the term reference field.
- * @param $entity_type
+ * 
+ * @param string $entity_type
  *   The entity this field is attached to.
- * @param $bundle
- *   The bundle this field is attached to.
- * @param $tags_typed
+ *
+ * @param string $bundle
+ *   The bundle name for the instance..
+ *
+ * @param string $field_name
+ *   The name of the term reference field.
+ *
+ * @param array $tags_typed
  *   (optional) A comma-separated list of term names entered in the
  *   autocomplete form element. Only the last term is used for autocompletion.
  *   Defaults to '' (an empty string).
@@ -57,9 +60,8 @@ function car_reference_autocomplete($entity_type, $bundle, $field_name, $tags_ty
     exit;
   }
 
-
-
-  // The user enters a comma-separated list of tags. We only autocomplete the last tag.
+  // The user enters a comma-separated list of tags.
+  // We only autocomplete the last tag.
   $tags_typed = drupal_explode_tags($tags_typed);
   $tag_last = drupal_strtolower(array_pop($tags_typed));
 
@@ -70,21 +72,26 @@ function car_reference_autocomplete($entity_type, $bundle, $field_name, $tags_ty
     $vids = array();
     $vocabularies = taxonomy_vocabulary_get_names();
 
-    //get instance settings or display error
-    if(!$field_instance = field_info_instance($entity_type, $field_name, $bundle)) {
-      print t('Unable to retrieve field instance settings for entity type: "@entity_type", bundle: "@bundle", field name: "@field_name".',
-              array('@entity_type'=> $entity_type, '@bundle' => $bundle, '@field_name' => $field_name));
+    // Get instance settings or display error.
+    if (!$field_instance = field_info_instance($entity_type, $field_name, $bundle)) {
+      print t('Unable to retrieve field instance settings for entity type: 
+        "@entity_type", bundle: "@bundle", field name: "@field_name".', array(
+          '@entity_type' => $entity_type,
+          '@bundle' => $bundle,
+          '@field_name' => $field_name,
+        )
+      );
       exit;
     }
 
     foreach ($field['settings']['allowed_values'] as $vocab_type => $tree) {
-      //only allow vocabs specified in field instance.
+      // Only allow vocabs specified in field instance.
       $vocab_type = explode('_', $vocab_type);
       if ($field_instance['settings']['choose_from'][$vocab_type[0]]) {
         $vids[] = $vocabularies[$tree['vocabulary']]->vid;
       }
     }
-    //We must have at least one vocab to select terms from.
+    // We must have at least one vocab to select terms from.
     if (empty($vids)) {
       print t('No valid vocabualaries to get terms from for this field instance. Allow either make, model or edition.');
       exit;
