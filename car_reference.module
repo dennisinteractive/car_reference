@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file
  * Main file for Car reference field module.
@@ -13,6 +14,15 @@ function car_reference_menu() {
   $items['car_reference/autocomplete'] = array(
     'title' => 'Autocomplete Car Reference',
     'page callback' => 'car_reference_autocomplete',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'car_reference.pages.inc',
+  );
+
+  $items['car_reference/vocabulary_fields/%'] = array(
+    'title' => '',
+    'page callback' => 'car_reference_vocabulary_fields',
+    'page arguments' => array(2),
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
     'file' => 'car_reference.pages.inc',
@@ -46,10 +56,12 @@ function car_reference_field_info() {
           ),
           'model_vocabulary' => array(
             'vocabulary' => 'model',
+            'ref_field_name' => '',
             'parent' => '0',
           ),
           'edition_vocabulary' => array(
             'vocabulary' => 'edition',
+            'ref_field_name' => '',
             'parent' => '0',
           ),
         ),
@@ -80,22 +92,70 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
   }
   $form['allowed_values'] = array(
     '#tree' => TRUE,
+    '#attached' => array(
+      'js' => array(
+        'car_reference-field-visibility' => drupal_get_path('module', 'car_reference') . '/car_reference.admin.js',
+      ),
+    ),
   );
 
+  // Get all the vocabularies fields for initial push,
+  // as they need to be here for validation purpose.
+  $vocabulary_fields = field_info_instances('taxonomy_term');
+  $taxonomy_fields_options = array();
+  foreach ($vocabulary_fields as $t_field) {
+    if (!empty($t_field)) {
+      $taxonomy_fields_options = array_merge(
+        $taxonomy_fields_options, array_combine(
+          array_keys($t_field), array_keys($t_field)
+      ));
+    }
+  }
+
   foreach ($field['settings']['allowed_values'] as $delta => $tree) {
-    $vocab_type = explode('_', $delta);
+    $delta_split = explode('_', $delta);
+    $vocab_type = ucfirst($delta_split[0]);
+
+    $form['allowed_values'][$delta] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Settings for @vocab_type', array('@vocab_type' => $vocab_type)),
+      '#collapsible' => TRUE,
+      '#collapsed' => FALSE,
+    );
+
     $form['allowed_values'][$delta]['vocabulary'] = array(
       '#type' => 'select',
-      '#title' => t('Vocabulary for @vocab_type', array('@vocab_type' => $vocab_type[0])),
+      '#title' => t('Vocabulary for @vocab_type', array('@vocab_type' => $vocab_type)),
       '#default_value' => $tree['vocabulary'],
       '#options' => $options,
       '#required' => TRUE,
       '#description' => t('The vocabulary which supplies the options for this field.'),
       '#disabled' => $has_data,
+      '#prefix' => '<div class="ajax-vocabulary-conf-vocabulary">',
+      '#suffix' => '</div>',
     );
+
     $form['allowed_values'][$delta]['parent'] = array(
       '#type' => 'value',
       '#value' => $tree['parent'],
+    );
+
+    // Skip adding ref_field_name for Make,
+    // as it's the first link in relationships.
+    if (strpos($delta, 'make_') !== FALSE) {
+      continue;
+    }
+
+    $form['allowed_values'][$delta]['ref_field_name'] = array(
+      '#type' => 'select',
+      '#title' => t('Reference field name used for @vocab_type', array('@vocab_type' => $vocab_type)),
+      '#default_value' => $tree['ref_field_name'],
+      '#options' => $taxonomy_fields_options,
+      '#required' => TRUE,
+      '#description' => t('The reference field name used to connect link structure entities.'),
+      '#disabled' => $has_data,
+      '#prefix' => '<div class="ajax-vocabulary-conf-ref-field-name">',
+      '#suffix' => '</div>',
     );
   }
 
@@ -350,7 +410,6 @@ function car_reference_field_formatter_prepare_view($entity_type, $entities, $fi
   }
 }
 
-
 /**
  * Implements hook_field_widget_info().
  */
@@ -413,7 +472,7 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         '#size' => $instance['widget']['settings']['size'],
         '#maxlength' => $field['settings']['max_length'],
         '#attributes' => array('class' => array('text-full')),
-      ) + $base;
+        ) + $base;
 
       $element['model_tid'] = array(
         '#type' => 'textfield',
@@ -422,7 +481,7 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         '#size' => $instance['widget']['settings']['size'],
         '#maxlength' => $field['settings']['max_length'],
         '#attributes' => array('class' => array('text-full')),
-      ) + $base;
+        ) + $base;
 
       $element['edition_tid'] = array(
         '#type' => 'textfield',
@@ -431,7 +490,7 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         '#size' => $instance['widget']['settings']['size'],
         '#maxlength' => $field['settings']['max_length'],
         '#attributes' => array('class' => array('text-full')),
-      ) + $base;
+        ) + $base;
 
       break;
 
@@ -455,7 +514,7 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         '#size' => $instance['widget']['settings']['size'],
         '#maxlength' => 1024,
         '#element_validate' => array('car_reference_autocomplete_validate'),
-      ) + $base;
+        ) + $base;
       break;
   }
 
@@ -482,10 +541,14 @@ function car_reference_autocomplete_validate($element, &$form_state) {
 
   $field_value = trim($element['#value']);
   if (!empty($field_value)) {
-    // Collect candidate vocabularies.
     $field = field_widget_field($element, $form_state);
-    $vocabularies = array();
 
+    // Is supposed that referenced fields are required on field setting.
+    $make_ref_field = $field['settings']['allowed_values']['model_vocabulary']['ref_field_name'];
+    $model_ref_field = $field['settings']['allowed_values']['edition_vocabulary']['ref_field_name'];
+
+    // Collect candidate vocabularies.
+    $vocabularies = array();
     foreach ($field['settings']['allowed_values'] as $tree) {
       if ($vocabulary = taxonomy_vocabulary_machine_name_load($tree['vocabulary'])) {
         $vocabularies[$vocabulary->vid] = $vocabulary;
@@ -497,24 +560,21 @@ function car_reference_autocomplete_validate($element, &$form_state) {
 
       if ($term->vocabulary_machine_name == $field['settings']['allowed_values']['edition_vocabulary']['vocabulary']) {
         $value['edition_tid'] = $term->tid;
-        dsm($term, 'the $term');
-        if ($model = taxonomy_term_load($term->field_model[LANGUAGE_NONE][0]['tid'])) {
+        if ($model = taxonomy_term_load($term->{$model_ref_field}[LANGUAGE_NONE][0]['tid'])) {
           $value['model_tid'] = $model->tid;
-          $value['make_tid'] = $model->field_make[LANGUAGE_NONE][0]['tid'];
+          $value['make_tid'] = $model->{$make_ref_field}[LANGUAGE_NONE][0]['tid'];
         }
       }
       elseif ($term->vocabulary_machine_name == $field['settings']['allowed_values']['model_vocabulary']['vocabulary']) {
         $value['model_tid'] = $term->tid;
-        $value['make_tid'] = $term->field_make[LANGUAGE_NONE][0]['tid'];
+        $value['make_tid'] = $term->{$make_ref_field}[LANGUAGE_NONE][0]['tid'];
       }
       elseif ($term->vocabulary_machine_name == $field['settings']['allowed_values']['make_vocabulary']['vocabulary']) {
         $value['make_tid'] = $term->tid;
       }
     }
-    else {
-      if (empty($element['#required'])) {
-        drupal_set_message(t('Invalid Car: :car', array(':car' => $element['#title'])), 'error');
-      }
+    elseif (empty($element['#required'])) {
+      drupal_set_message(t('Invalid Car: :car', array(':car' => $element['#title'])), 'error');
     }
   }
 
@@ -714,6 +774,7 @@ function car_reference_token_info() {
   );
   return $info;
 }
+
 /**
  * Implements hook_tokens().
  */
