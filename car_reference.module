@@ -541,22 +541,28 @@ function car_reference_autocomplete_validate($element, &$form_state) {
 
   $field_value = trim($element['#value']);
   if (!empty($field_value)) {
-    $field = field_widget_field($element, $form_state);
-
-    // Is supposed that referenced fields are required on field setting.
-    $make_ref_field = $field['settings']['allowed_values']['model_vocabulary']['ref_field_name'];
-    $model_ref_field = $field['settings']['allowed_values']['edition_vocabulary']['ref_field_name'];
-
-    // Collect candidate vocabularies.
-    $vocabularies = array();
-    foreach ($field['settings']['allowed_values'] as $tree) {
-      if ($vocabulary = taxonomy_vocabulary_machine_name_load($tree['vocabulary'])) {
-        $vocabularies[$vocabulary->vid] = $vocabulary;
+    // Use choose_from settings for field instance.
+    $field_instance = field_info_instance($element['#entity_type'], $element['#field_name'], $element['#bundle']);
+    // Reverse array to get edition first.
+    $choose_from = array_reverse($field_instance['settings']['choose_from'], TRUE);
+    foreach ($choose_from as $machine_name => $allowed) {
+      if ($allowed) {
+        if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
+          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $field_value, 'vid' => $vocabulary->vid))) {
+            $term = array_pop($possibilities);
+            break;
+          }
+        }
       }
     }
 
-    if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => trim($field_value), 'vid' => array_keys($vocabularies)))) {
-      $term = array_pop($possibilities);
+    if (isset($term->vocabulary_machine_name)) {
+      // Get the field settings.
+      $field = field_widget_field($element, $form_state);
+
+      // It is supposed that referenced fields are required on field setting.
+      $make_ref_field = $field['settings']['allowed_values']['model_vocabulary']['ref_field_name'];
+      $model_ref_field = $field['settings']['allowed_values']['edition_vocabulary']['ref_field_name'];
 
       if ($term->vocabulary_machine_name == $field['settings']['allowed_values']['edition_vocabulary']['vocabulary']) {
         $value['edition_tid'] = $term->tid;
