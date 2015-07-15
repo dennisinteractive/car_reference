@@ -899,3 +899,161 @@ function car_reference_get_key_value_pairs($tids) {
 
   return $kvp;
 }
+
+/**
+ * Implements hook_taxonomy_term_update().
+ *
+ * Update all the record related to car_reference field.
+ *
+ * @todo: get all the possible vocabularies from all car_reference fields.
+ */
+function car_reference_taxonomy_term_update($term) {
+  // Get the field settings data about car reference.
+  $field_conf = field_info_field('field_primary_car_reference');
+  $confs = $field_conf['settings']['allowed_values'];
+  $model_vocabulary = $confs['model_vocabulary']['vocabulary'];
+  $edition_vocabulary = $confs['edition_vocabulary']['vocabulary'];
+
+  $changed = FALSE;
+
+  // The parent can be changed just for model and edition.
+  // This would mean that we should act only on this terms update
+  // in order to update node related data to that.
+  $act_on_vocs = array($model_vocabulary, $edition_vocabulary);
+  if (!in_array($term->vocabulary_machine_name, $act_on_vocs)) {
+    return;
+  }
+  $term_original = $term->original;
+
+  // Detect any changes on ref_field level.
+  foreach ($act_on_vocs as $voc_name) {
+    // Get the current value.
+    $current_field = field_get_items('taxonomy_term', $term, $confs[$voc_name . '_vocabulary']['ref_field_name']);
+    $current_field_val = !empty($current_field) ? $current_field[0]['tid'] : FALSE;
+    // Get the original value.
+    $original_current_field = field_get_items('taxonomy_term', $term_original, $confs[$voc_name . '_vocabulary']['ref_field_name']);
+    $original_current_field_val = !empty($original_current_field) ? $original_current_field[0]['tid'] : FALSE;
+
+    if ($current_field_val != $original_current_field_val) {
+      $changed = TRUE;
+      break;
+    }
+  }
+
+  if (!$changed) {
+    return;
+  }
+
+  // Act in case the tid was changed for another tid at this time.
+  // Not sure yet what to do in case of deleting it.
+  if ($original_current_field_val && $current_field_val) {
+    // Detect the fields using car reference field type.
+    $query = db_select('field_config', 'fc');
+    $query->fields('fc', array('field_name'));
+    $query->condition('fc.type', 'car_reference');
+    $query->condition('fc.storage_type', 'field_sql_storage');
+    $car_reference_fields = $query->execute()->fetchAll(PDO::FETCH_COLUMN, 0);
+
+    if (empty($car_reference_fields)) {
+      return;
+    }
+
+    $rows_to_update = _car_reference_get_fields_rows_to_update($car_reference_fields, $original_current_field_val, $current_field_val);
+    $rows_to_update += _car_reference_get_taxonomy_rows_to_update($original_current_field_val, $current_field_val);
+  }
+
+  if (!empty($rows_to_update)) {
+    _car_reference_push_update($rows_to_update);
+  }
+}
+
+/**
+ * Get the rows from car_reference field type which are going to be updated,
+ * after changing the relationship between make/model/edition.
+ */
+function _car_reference_get_fields_rows_to_update($car_reference_fields, $original_current_field_val, $current_field_val) {
+  $rows_to_update = array();
+
+  foreach ($car_reference_fields as $field_name) {
+    $query = db_select('field_data_' . $field_name, 'fcr');
+    $query->fields('fcr');
+    // Match records related to the current modified one.
+    $db_or = db_or()
+      ->condition('fcr.' . $field_name . '_make_tid', $original_current_field_val)
+      ->condition('fcr.' . $field_name . '_model_tid', $original_current_field_val)
+      ->condition('fcr.' . $field_name . '_edition_tid', $original_current_field_val);
+    $query->condition($db_or);
+
+    foreach ($query->execute() as $record) {
+      // Skip scheduled records for deletion.
+      if ($record->deleted) {
+        continue;
+      }
+
+      $related_record = array_flip((array) $record);
+
+      $rows_to_update['field_data_' . $field_name] = array(
+        'table' => 'field_data_' . $field_name,
+        'update_column_name' => $related_record[$original_current_field_val],
+        'update_column_value' => $current_field_val,
+        'update_original_column_value' => $original_current_field_val,
+      );
+
+      // One result is enough in order to update all the records.
+      break 1;
+    }
+  }
+
+  return $rows_to_update;
+}
+
+/**
+ * Get the rows from taxonomy_index table which are going to be updated,
+ * after changing the relationship between make/model/edition.
+ */
+function _car_reference_get_taxonomy_rows_to_update($original_current_field_val, $current_field_val) {
+  $rows_to_update = $rows_id = array();
+
+  $query = db_select('taxonomy_index', 'ti');
+  $query->fields('ti');
+  // Match records related to the current modified one.
+  $query->condition('ti.tid', $original_current_field_val);
+
+  foreach ($query->execute() as $record) {
+    $rows_id[] = $record->nid;
+    $rows_to_update['taxonomy_index'] = array(
+      'table' => 'taxonomy_index',
+      'update_column_name' => 'tid',
+      'update_column_value' => $current_field_val,
+      'update_original_column_value' => $original_current_field_val,
+    );
+  }
+
+  // Store all the ids in order to clear the entity cache.
+  $rows_to_update['taxonomy_index']['entity_ids_updated'] = $rows_id;
+
+  return $rows_to_update;
+}
+
+/**
+ * Update all detected rows.
+ * @param type $rows_to_update
+ */
+function _car_reference_push_update($rows_to_update) {
+  // Loop through the tables.
+  foreach ($rows_to_update as $row) {
+    db_update($row['table'])
+      ->fields(array($row['update_column_name'] => $row['update_column_value']))
+      ->condition($row['update_column_name'], $row['update_original_column_value'])
+      ->expression($row['update_column_name'], 'replace(' . $row['update_column_name'] . ', :old_val, :new_val)', array(
+        ':old_val' => $row['update_original_column_value'],
+        ':new_val' => $row['update_column_value'],
+      ))
+      ->execute();
+
+    // Clear the node cache.
+    if (!empty($row['entity_ids_updated'])) {
+      entity_get_controller('node')->resetCache($row['entity_ids_updated']);
+    }
+  }
+}
