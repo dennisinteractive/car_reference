@@ -982,8 +982,9 @@ function _car_reference_get_fields_rows_to_update($car_reference_fields, $origin
         continue;
       }
 
-      // Shut down the warning here, because the not all car references
-      // entities are required(edition->make->model), but we can be sure we are
+      // Shut down the warning here, because not all car references entities
+      // are required(edition->make->model) - some of them may be NULL which
+      // cause an warning when using array_flip, but we can be sure we are
       // processing correct data as conditions was applied into mysql query.
       $related_record = @array_flip((array) $record);
 
