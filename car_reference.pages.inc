@@ -87,7 +87,7 @@ function car_reference_autocomplete($entity_type, $bundle, $field_name, $tags_ty
     foreach ($field['settings']['allowed_values'] as $vocab_type => $tree) {
       // Only allow vocabs specified in field instance.
       $vocab_type = explode('_', $vocab_type);
-      if ($field_instance['settings']['choose_from'][$vocab_type[0]]) {
+      if (!empty($field_instance['settings']['choose_from'][$vocab_type[0]])) {
         $vids[] = $vocabularies[$tree['vocabulary']]->vid;
       }
     }
