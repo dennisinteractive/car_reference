@@ -3,13 +3,6 @@
     Drupal.behaviors.carReferenceFieldAdminSelect = {
         attach: function (context) {
 
-
-            var dSettings = Drupal.settings;
-            var x = false;
-            if (dSettings.car_reference != undefined) {
-                x = (dSettings.car_reference != undefined) ? dSettings.car_reference.hasData : false;
-            }
-
             // Replace the options depending on chosen value in parent select.
             var detectVocabularyOptions = {
                 ajaxBaseUrl: '/car_reference/vocabulary_fields/',
