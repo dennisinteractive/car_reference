@@ -90,14 +90,6 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
   foreach ($vocabularies as $vocabulary) {
     $options[$vocabulary->machine_name] = $vocabulary->name;
   }
-  $form['allowed_values'] = array(
-    '#tree' => TRUE,
-    '#attached' => array(
-      'js' => array(
-        'car_reference-field-visibility' => drupal_get_path('module', 'car_reference') . '/car_reference.admin.js',
-      ),
-    ),
-  );
 
   // Get all the vocabularies fields for initial push,
   // as they need to be here for validation purpose.
@@ -105,13 +97,13 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
   $taxonomy_fields_options = array();
   foreach ($vocabulary_fields as $t_field) {
     if (!empty($t_field)) {
-      $taxonomy_fields_options = array_merge(
-        $taxonomy_fields_options, array_combine(
-          array_keys($t_field), array_keys($t_field)
-      ));
+      $taxonomy_fields_options = array_merge($taxonomy_fields_options, array_combine(array_keys($t_field), array_keys($t_field)));
     }
   }
 
+  $form['allowed_values']['#tree'] = TRUE;
+
+  $no_way_to_edit = array();
   foreach ($field['settings']['allowed_values'] as $delta => $tree) {
     $delta_split = explode('_', $delta);
     $vocab_type = ucfirst($delta_split[0]);
@@ -157,7 +149,27 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
       '#prefix' => '<div class="ajax-vocabulary-conf-ref-field-name">',
       '#suffix' => '</div>',
     );
+
+    // Detect the cases when data will can't be set/changed from UI because of
+    // the data pushed into field table.
+    if ($has_data && (empty($tree['ref_field_name']) || empty($tree['vocabulary']))) {
+      $no_way_to_edit[] = $delta;
+    }
   }
+
+  // Send the needed variables into JS.
+  $form['allowed_values']['#attached']['js'] = array(
+    array(
+      'data' => array(
+        'car_reference' => array(
+          'hasData' => $has_data,
+          'noWayToEdit' => $no_way_to_edit,
+        ),
+      ),
+      'type' => 'setting',
+    ),
+    'car_reference-field-visibility' => drupal_get_path('module', 'car_reference') . '/car_reference.admin.js',
+  );
 
   return $form;
 }
@@ -288,8 +300,8 @@ function car_reference_field_formatter_settings_summary($field, $instance, $view
         '#type' => 'item',
         '#title' => t('Settings'),
         '#markup' => t('View mode: %mode Vocabulary: %vocab', array(
-          '%mode' => $settings['view_mode'],
-          '%vocab' => $settings['vocabulary'],
+            '%mode' => $settings['view_mode'],
+            '%vocab' => $settings['vocabulary'],
           )
         ),
       );
@@ -466,30 +478,30 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
     case 'car_reference_tids':
 
       $element['make_tid'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Make'),
-        '#default_value' => isset($items[$delta]['make_tid']) ? $items[$delta]['make_tid'] : NULL,
-        '#size' => $instance['widget']['settings']['size'],
-        '#maxlength' => $field['settings']['max_length'],
-        '#attributes' => array('class' => array('text-full')),
+          '#type' => 'textfield',
+          '#title' => t('Make'),
+          '#default_value' => isset($items[$delta]['make_tid']) ? $items[$delta]['make_tid'] : NULL,
+          '#size' => $instance['widget']['settings']['size'],
+          '#maxlength' => $field['settings']['max_length'],
+          '#attributes' => array('class' => array('text-full')),
         ) + $base;
 
       $element['model_tid'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Model'),
-        '#default_value' => isset($items[$delta]['model_tid']) ? $items[$delta]['model_tid'] : NULL,
-        '#size' => $instance['widget']['settings']['size'],
-        '#maxlength' => $field['settings']['max_length'],
-        '#attributes' => array('class' => array('text-full')),
+          '#type' => 'textfield',
+          '#title' => t('Model'),
+          '#default_value' => isset($items[$delta]['model_tid']) ? $items[$delta]['model_tid'] : NULL,
+          '#size' => $instance['widget']['settings']['size'],
+          '#maxlength' => $field['settings']['max_length'],
+          '#attributes' => array('class' => array('text-full')),
         ) + $base;
 
       $element['edition_tid'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Edition'),
-        '#default_value' => isset($items[$delta]['edition_tid']) ? $items[$delta]['edition_tid'] : NULL,
-        '#size' => $instance['widget']['settings']['size'],
-        '#maxlength' => $field['settings']['max_length'],
-        '#attributes' => array('class' => array('text-full')),
+          '#type' => 'textfield',
+          '#title' => t('Edition'),
+          '#default_value' => isset($items[$delta]['edition_tid']) ? $items[$delta]['edition_tid'] : NULL,
+          '#size' => $instance['widget']['settings']['size'],
+          '#maxlength' => $field['settings']['max_length'],
+          '#attributes' => array('class' => array('text-full')),
         ) + $base;
 
       break;
@@ -508,12 +520,12 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
 
       // Use a fake element to store the term name value.
       $element['taxonomy_term'] = array(
-        '#type' => 'textfield',
-        '#default_value' => (isset($term->name)) ? $term->name : '',
-        '#autocomplete_path' => $instance['widget']['settings']['autocomplete_path'] . '/' . $instance['entity_type'] . '/' . $instance['bundle'] . '/' . $field['field_name'],
-        '#size' => $instance['widget']['settings']['size'],
-        '#maxlength' => 1024,
-        '#element_validate' => array('car_reference_autocomplete_validate'),
+          '#type' => 'textfield',
+          '#default_value' => (isset($term->name)) ? $term->name : '',
+          '#autocomplete_path' => $instance['widget']['settings']['autocomplete_path'] . '/' . $instance['entity_type'] . '/' . $instance['bundle'] . '/' . $field['field_name'],
+          '#size' => $instance['widget']['settings']['size'],
+          '#maxlength' => 1024,
+          '#element_validate' => array('car_reference_autocomplete_validate'),
         ) + $base;
       break;
   }
