@@ -300,10 +300,9 @@ function car_reference_field_formatter_settings_summary($field, $instance, $view
         '#type' => 'item',
         '#title' => t('Settings'),
         '#markup' => t('View mode: %mode Vocabulary: %vocab', array(
-            '%mode' => $settings['view_mode'],
-            '%vocab' => $settings['vocabulary'],
-          )
-        ),
+          '%mode' => $settings['view_mode'],
+          '%vocab' => $settings['vocabulary'],
+        )),
       );
 
       break;
@@ -560,7 +559,11 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     foreach ($choose_from as $machine_name => $allowed) {
       if ($allowed) {
         if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $field_value, 'vid' => $vocabulary->vid))) {
+          if ($possibilities = taxonomy_term_load_multiple(array(), array(
+            'name' => $field_value,
+            'vid' => $vocabulary->vid
+          ))
+          ) {
             $term = array_pop($possibilities);
             break;
           }
@@ -737,8 +740,12 @@ function car_reference_build_node_index($node) {
     }
     // Insert index entries for all the node's terms.
     if (!empty($tid_all)) {
-      $query = db_insert('taxonomy_index')
-        ->fields(array('nid', 'tid', 'sticky', 'created'));
+      $query = db_insert('taxonomy_index')->fields(array(
+        'nid',
+        'tid',
+        'sticky',
+        'created'
+      ));
       foreach ($tid_all as $tid) {
         $query->values(array(
           'nid' => $node->nid,
@@ -753,142 +760,13 @@ function car_reference_build_node_index($node) {
 }
 
 /**
- * Implements hook_token_info().
- */
-function car_reference_token_info() {
-  $info['tokens']['node']['car_reference_make_name'] = array(
-    'name' => t('Car reference make name'),
-    'description' => t('Car reference make name.'),
-  );
-  $info['tokens']['node']['car_reference_make_name_url'] = array(
-    'name' => t('Car reference make name for URLs'),
-    'description' => t('Car reference make name value for use in URLs.'),
-  );
-  $info['tokens']['node']['car_reference_make_term_alias'] = array(
-    'name' => t('Car reference make taxonomy term URL alias'),
-    'description' => t('The make terms URL alias. eg ford'),
-  );
-
-  $info['tokens']['node']['car_reference_model_name'] = array(
-    'name' => t('Car reference model name'),
-    'description' => t('Car reference model name.'),
-  );
-  $info['tokens']['node']['car_reference_model_name_url'] = array(
-    'name' => t('Car reference model name for URLs'),
-    'description' => t('Car reference model name value for use in URLs.'),
-  );
-  $info['tokens']['node']['car_reference_model_term_alias'] = array(
-    'name' => t('Car reference model taxonomy term URL alias'),
-    'description' => t('The model terms URL alias. eg ford/focus'),
-  );
-
-  $info['tokens']['node']['car_reference_edition_name'] = array(
-    'name' => t('Car reference edition name'),
-    'description' => t('Car reference edition name.'),
-  );
-  $info['tokens']['node']['car_reference_edition_name_url'] = array(
-    'name' => t('Car reference edition name for URLs'),
-    'description' => t('Car reference edition name value for use in URLs.'),
-  );
-  return $info;
-}
-
-/**
- * Implements hook_tokens().
- */
-function car_reference_tokens($type, $tokens, array $data = array(), array $options = array()) {
-  $replacements = array();
-  if ($type == 'node' && !empty($data['node'])) {
-    $node = $data['node'];
-
-    foreach ($tokens as $name => $original) {
-      switch ($name) {
-        case 'car_reference_make_name':
-        case 'car_reference_make_name_url':
-          if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid'])) {
-            $replacements[$original] = car_reference_get_make_name($node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid']);
-          }
-          break;
-
-        case 'car_reference_make_term_alias':
-          if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid'])) {
-            $replacements[$original] = drupal_lookup_path('alias', 'taxonomy/term/' . $node->field_primary_car_reference[LANGUAGE_NONE][0]['make_tid']);
-          }
-          break;
-
-        case 'car_reference_model_name':
-        case 'car_reference_model_name_url':
-          if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid'])) {
-            $replacements[$original] = car_reference_get_model_name($node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid']);
-          }
-          break;
-
-        case 'car_reference_model_term_alias':
-          if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid'])) {
-            $replacements[$original] = drupal_lookup_path('alias', 'taxonomy/term/' . $node->field_primary_car_reference[LANGUAGE_NONE][0]['model_tid']);
-          }
-          break;
-
-        case 'car_reference_edition_name':
-        case 'car_reference_edition_name_url':
-          if (!empty($node->field_primary_car_reference[LANGUAGE_NONE][0]['edition_tid'])) {
-            $replacements[$original] = car_reference_get_edition_name($node->field_primary_car_reference[LANGUAGE_NONE][0]['edition_tid']);
-          }
-          break;
-      }
-
-      if (!empty($replacements[$original]) && ($name == 'car_reference_edition_name_url' || $name == 'car_reference_model_name_url' || $name == 'car_reference_make_name_url')) {
-        if (!function_exists('pathauto_cleanstring')) {
-          module_load_include('inc', 'pathauto');
-        }
-        $replacements[$original] = pathauto_cleanstring($replacements[$original]);
-      }
-    }
-  }
-  return $replacements;
-}
-
-/**
- * Returns a model name given a model tid.
- *
- * @param string $tid
- *   Taxonomy term ID.
- */
-function car_reference_get_model_name($tid) {
-  $query = db_select('field_data_field_short_name', 'mn')->fields('mn', array('field_short_name_value'));
-  $query->condition('mn.entity_id', $tid)->condition('mn.entity_type', 'taxonomy_term')->condition('deleted', 0);
-  return $query->execute()->fetchField();
-}
-
-/**
- * Returns an edition name given an edition tid.
- *
- * @param string $tid
- *   Taxonomy term ID.
- */
-function car_reference_get_edition_name($tid) {
-  $query = db_select('field_data_field_short_name', 'en')->fields('en', array('field_short_name_value'));
-  $query->condition('en.entity_id', $tid)->condition('en.entity_type', 'taxonomy_term')->condition('deleted', 0);
-  return $query->execute()->fetchField();
-}
-
-/**
- * Returns a make name given a make tid.
- *
- * @param string $tid
- *   Taxonomy term ID.
- */
-function car_reference_get_make_name($tid) {
-  if ($term = taxonomy_term_load($tid)) {
-    return $term->name;
-  }
-}
-
-/**
  * Returns the key value pairs of the given tids for use in adtags etc.
  *
  * @param array $tids
  *   Taxonomy term IDs.
+ *
+ * @return array $kvp
+ *   The Key Value Pairs array.
  */
 function car_reference_get_key_value_pairs($tids) {
   $kvp = array();
@@ -925,7 +803,7 @@ function car_reference_taxonomy_term_update($term) {
 
   foreach ($car_reference_fields as $field_name) {
     // Get the field settings data about car reference.
-    $field_conf = field_info_field('field_primary_car_reference');
+    $field_conf = field_info_field($field_name);
     $confs = $field_conf['settings']['allowed_values'];
     // We don't need to act on make represented vocabulary.
     $act_on_vocs[] = $confs['model_vocabulary']['vocabulary'];
@@ -1044,14 +922,21 @@ function _car_reference_get_taxonomy_rows_to_update($original_current_field_val,
 }
 
 /**
- * Detect the fields using car_reference field type.
+ * Get the fields using car_reference field type.
  */
 function _get_car_reference_fields() {
+  static $fields;
+
+  // Query ran, return whatever is in the results
+  if (is_array($fields)) {
+    return $fields;
+  }
+
   $query = db_select('field_config', 'fc');
   $query->fields('fc', array('field_name', 'data'));
   $query->condition('fc.type', 'car_reference');
   $query->condition('fc.storage_type', 'field_sql_storage');
-  return $query->execute()->fetchCol();
+  return $fields = $query->execute()->fetchCol();
 }
 
 /**
@@ -1074,4 +959,71 @@ function _car_reference_push_update($rows_to_update) {
       entity_get_controller('node')->resetCache($row['entity_ids_updated']);
     }
   }
+}
+
+
+/**
+ * Get the node "Car reference" structured unique data.
+ *
+ * @param object $node
+ *   Node object.
+ *
+ * @param string $field
+ *   Limit the result to a specific node field name.
+ *
+ * @param array $options
+ *   Additional options.
+ *
+ * @return array
+ *   Grouped array with car_referece data.
+ *
+ * @notice: This function is going to be modified/improved according
+ * to the necessity which will appear.
+ */
+function car_reference_get_node_car_reference_data($node, $field = '', $options = array()) {
+  $data = array();
+  $append_bodystyle = TRUE;
+
+  if (isset($options['append_bodystyle']) && $options['append_bodystyle'] === FALSE) {
+    $append_bodystyle = FALSE;
+  }
+
+  $options['append_bodystyle'] = TRUE;
+  $fields = field_info_instances('node', $node->type);
+
+  // Limit to requested field if found.
+  if (is_string($field) && !empty($node_fields[$field])) {
+    $fields = array($field => $field);
+  }
+
+  foreach ($fields as $field_name => $field_instance) {
+    $field_info = field_info_field($field_name);
+    $field_items = field_get_items('node', $node, $field_name);
+    // Only check car reference fields that have data.
+    if ($field_info['type'] !== 'car_reference' || !is_array($field_items)) {
+      continue;
+    }
+
+    // Store available data.
+    foreach ($field_items as $field_item) {
+      if (isset($field_item['edition_tid']) && $term = taxonomy_term_load($field_item['edition_tid'])) {
+        $data['edition'][$term->tid]['tid'] = $term->tid;
+        $data['edition'][$term->tid]['name'] = $term->name;
+        // Additional parameter used adTag.
+        if ($append_bodystyle && $short_title = carbuyer_site_get_field_value('taxonomy_term', $term, 'field_edition_review_short_title')) {
+          $data['bodystyle'][$term->tid]['tid'] = $term->tid;
+          $data['bodystyle'][$term->tid]['name'] = $short_title;
+        }
+      }
+      if (isset($field_item['model_tid']) && $term = taxonomy_term_load($field_item['model_tid'])) {
+        $data['model'][$term->tid]['tid'] = $term->tid;
+        $data['model'][$term->tid]['name'] = $term->name;
+      }
+      if (isset($field_item['make_tid']) && $term = taxonomy_term_load($field_item['make_tid'])) {
+        $data['make'][$term->tid]['tid'] = $term->tid;
+        $data['make'][$term->tid]['name'] = $term->name;
+      }
+    }
+  }
+  return $data;
 }
