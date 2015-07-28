@@ -579,6 +579,14 @@ function car_reference_autocomplete_validate($element, &$form_state) {
       $make_ref_field = $field['settings']['allowed_values']['model_vocabulary']['ref_field_name'];
       $model_ref_field = $field['settings']['allowed_values']['edition_vocabulary']['ref_field_name'];
 
+      // Stop if there are missing field configurations.
+      if (empty($make_ref_field) || empty($model_ref_field)) {
+        form_set_error($element['#field_name'], t('The field: :field_name is missing the required configurations.', array(
+          ':field_name' => $element['#field_name'],
+        )));
+        return;
+      }
+
       if ($term->vocabulary_machine_name == $field['settings']['allowed_values']['edition_vocabulary']['vocabulary']) {
         $value['edition_tid'] = $term->tid;
         if ($model = taxonomy_term_load($term->{$model_ref_field}[LANGUAGE_NONE][0]['tid'])) {

@@ -12,37 +12,38 @@
 
                     this.currentSelect = this.parentWrapper.find('.ajax-vocabulary-conf-ref-field-name select');
                     this.selectedOption = this.currentSelect.find("option:selected").attr('value');
+
                     // Clean-Up current options.
                     this.currentSelect.empty();
 
                     var currSelectEl = this.currentSelect;
+                    var currSelectedOption = this.selectedOption;
 
                     // This means that this field configuration can't be edited anymore due to populated records in the
                     // current table. This means that all the configuration needs to be done programmatically.
                     if (this.noWayToEdit) {
                         var customOptions = {
-                            'none': Drupal.t('Error: The field is locked and not all field settings are set.'),
+                            'none': Drupal.t('Error: The field is locked and/or not all field settings are set.'),
                         };
 
                         // Append the options.
-                        this.appendOptions(customOptions, currSelectEl);
+                        this.appendOptions(customOptions, currSelectEl, currSelectedOption);
                         return;
                     }
-
 
                     var tempThis = this;
                     $.get(this.ajaxUrl, function (data) {
                         // Append the options.
-                        tempThis.appendOptions(data, currSelectEl);
+                        tempThis.appendOptions(data, currSelectEl, currSelectedOption);
                     });
                 },
 
                 // Loop returned JSON options and append those as options.
-                appendOptions: function (data, currSelectEl) {
+                appendOptions: function (data, currSelectEl, currSelectedOption) {
                     var tempThis = this;
                     $.each(data, function (key, value) {
 
-                        if (tempThis.selectedOption == key) {
+                        if (currSelectedOption == key) {
                             currSelectEl.append($("<option></option>")
                                 .attr('value', key)
                                 .attr('selected', 'selected')
