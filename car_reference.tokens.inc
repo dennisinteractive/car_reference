@@ -14,7 +14,6 @@ function car_reference_token_info() {
   $types['car_reference'] = array(
     'name' => t('Car Reference fields'),
     'description' => t('Tokens related to the Car Reference field type.'),
-    //'needs-data' => 'node',
   );
 
   // Car reference specific tokens.
@@ -27,10 +26,6 @@ function car_reference_token_info() {
       'name' => t('Make name for URLs'),
       'description' => t('Make name value for use in URLs.'),
     );
-    $car_references[$field_name . '_make_term_alias'] = array(
-      'name' => t('Make taxonomy term URL alias'),
-      'description' => t('The make terms URL alias. eg ford'),
-    );
 
     $car_references[$field_name . '_model_name'] = array(
       'name' => t('Model name'),
@@ -39,10 +34,6 @@ function car_reference_token_info() {
     $car_references[$field_name . '_model_name_url'] = array(
       'name' => t('Model name for URLs'),
       'description' => t('Model name value for use in URLs.'),
-    );
-    $car_references[$field_name . '_model_term_alias'] = array(
-      'name' => t('Model taxonomy term URL alias'),
-      'description' => t('Terms URL alias. eg ford/focus'),
     );
 
     $car_references[$field_name . '_edition_name'] = array(
