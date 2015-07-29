@@ -552,6 +552,9 @@ function car_reference_autocomplete_validate($element, &$form_state) {
 
   $field_value = trim($element['#value']);
   if (!empty($field_value)) {
+    // Store the raw value to use for validation.
+    $value['raw_input'] = $field_value;
+
     // Use choose_from settings for field instance.
     $field_instance = field_info_instance($element['#entity_type'], $element['#field_name'], $element['#bundle']);
     // Reverse array to get edition first.
@@ -559,11 +562,7 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     foreach ($choose_from as $machine_name => $allowed) {
       if ($allowed) {
         if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          if ($possibilities = taxonomy_term_load_multiple(array(), array(
-            'name' => $field_value,
-            'vid' => $vocabulary->vid
-          ))
-          ) {
+          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $field_value, 'vid' => $vocabulary->vid))) {
             $term = array_pop($possibilities);
             break;
           }
@@ -602,9 +601,6 @@ function car_reference_autocomplete_validate($element, &$form_state) {
         $value['make_tid'] = $term->tid;
       }
     }
-    elseif (empty($element['#required'])) {
-      drupal_set_message(t('Invalid Car: :car', array(':car' => $element['#title'])), 'error');
-    }
   }
 
   // Autocomplete uses a fake element so the values needs to be added
@@ -627,13 +623,9 @@ function car_reference_autocomplete_validate($element, &$form_state) {
  *   The value is not part of the list of allowed values.
  */
 function car_reference_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
-  // Don't validate form when configuring field on the field UI.
-  // When editing a node, $entity will be a class.
-  if (is_null($entity)) {
-    return;
-  }
 
   foreach ($items as $delta => $item) {
+
     $validate = TRUE;
 
     // Get the vocabularies from the field configuration.
@@ -653,8 +645,17 @@ function car_reference_field_validate($entity_type, $entity, $field, $instance, 
           break;
         }
         else {
-          if ($instance['required']) {
-            $validate = FALSE;
+          $validate = FALSE;
+          // If the user hasn't provided an input value, check if that is allowed.
+          if (!isset($item['raw_input'])) {
+            // Don't force default values on field instance settings form.
+            if (empty($entity_type)) {
+              $validate = TRUE;
+            }
+            // Don't force values when field is not required.
+            if(!$instance['required']){
+              $validate = TRUE;
+            }
           }
         }
       }
