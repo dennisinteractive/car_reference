@@ -130,34 +130,3 @@ function car_reference_autocomplete($entity_type, $bundle, $field_name, $tags_ty
 
   drupal_json_output($matches);
 }
-
-/**
- * Get vocabulary fields.
- *
- * @param string $voc_name
- *   Vocabulary machine name.
- *
- * @return json
- */
-function car_reference_vocabulary_fields($voc_name) {
-  $vocabulary = taxonomy_vocabulary_machine_name_load($voc_name);
-
-  if (!$vocabulary) {
-    return;
-  }
-
-  $options = array();
-  $vocabulary_fields = field_info_instances('taxonomy_term', $voc_name);
-
-  foreach ($vocabulary_fields as $name => $field) {
-    if ($field['entity_type'] == 'taxonomy_term') {
-      $options[$name] = $name;
-    }
-  }
-
-  if (empty($options)) {
-    $options['_none'] = t('There are no available fields for this vocabulary.');
-  }
-
-  drupal_json_output($options);
-}

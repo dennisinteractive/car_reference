@@ -19,15 +19,6 @@ function car_reference_menu() {
     'file' => 'car_reference.pages.inc',
   );
 
-  $items['car_reference/vocabulary_fields/%'] = array(
-    'title' => '',
-    'page callback' => 'car_reference_vocabulary_fields',
-    'page arguments' => array(2),
-    'access arguments' => array('access content'),
-    'type' => MENU_CALLBACK,
-    'file' => 'car_reference.pages.inc',
-  );
-
   return $items;
 }
 
@@ -91,16 +82,6 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
     $options[$vocabulary->machine_name] = $vocabulary->name;
   }
 
-  // Get all the vocabularies fields for initial push,
-  // as they need to be here for validation purpose.
-  $vocabulary_fields = field_info_instances('taxonomy_term');
-  $taxonomy_fields_options = array();
-  foreach ($vocabulary_fields as $t_field) {
-    if (!empty($t_field)) {
-      $taxonomy_fields_options = array_merge($taxonomy_fields_options, array_combine(array_keys($t_field), array_keys($t_field)));
-    }
-  }
-
   $form['allowed_values']['#tree'] = TRUE;
 
   $no_way_to_edit = array();
@@ -115,6 +96,11 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
       '#collapsed' => FALSE,
     );
 
+    $form['allowed_values'][$delta]['parent'] = array(
+      '#type' => 'value',
+      '#value' => $tree['parent'],
+    );
+
     $form['allowed_values'][$delta]['vocabulary'] = array(
       '#type' => 'select',
       '#title' => t('Vocabulary for @vocab_type', array('@vocab_type' => $vocab_type)),
@@ -123,13 +109,6 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
       '#required' => TRUE,
       '#description' => t('The vocabulary which supplies the options for this field.'),
       '#disabled' => $has_data,
-      '#prefix' => '<div class="ajax-vocabulary-conf-vocabulary">',
-      '#suffix' => '</div>',
-    );
-
-    $form['allowed_values'][$delta]['parent'] = array(
-      '#type' => 'value',
-      '#value' => $tree['parent'],
     );
 
     // Skip adding ref_field_name for Make,
@@ -138,40 +117,101 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
       continue;
     }
 
+    // Add AJAX settings to model and edition fields only.
+    $form['allowed_values'][$delta]['vocabulary']['#ajax'] = array(
+      'callback' => 'car_reference_parent_field_selector',
+      'wrapper' => 'ajax-vocabulary-conf-ref-field-name-' . $delta,
+      'method' => 'replace',
+    );
+
     $form['allowed_values'][$delta]['ref_field_name'] = array(
       '#type' => 'select',
-      '#title' => t('Reference field name used for @vocab_type', array('@vocab_type' => $vocab_type)),
-      '#default_value' => $tree['ref_field_name'],
-      '#options' => $taxonomy_fields_options,
+      '#title' => t('Parent reference field name used for @vocab_type', array('@vocab_type' => $vocab_type)),
+      '#default_value' => isset($tree['ref_field_name']) ? $tree['ref_field_name'] : '',
+      // Options will be populated in car_reference_form_alter() where $form_state is available.
+      '#options' => array(),
       '#required' => TRUE,
       '#description' => t('The reference field name used to connect link structure entities.'),
-      '#disabled' => $has_data,
-      '#prefix' => '<div class="ajax-vocabulary-conf-ref-field-name">',
+      '#disabled' => (!empty($tree['ref_field_name']) && $has_data),
+      '#prefix' => '<div id="ajax-vocabulary-conf-ref-field-name-' . $delta . '">',
       '#suffix' => '</div>',
     );
 
-    // Detect the cases when data will can't be set/changed from UI because of
-    // the data pushed into field table.
-    if ($has_data && (empty($tree['ref_field_name']) || empty($tree['vocabulary']))) {
-      $no_way_to_edit[] = $delta;
+  }
+
+  return $form;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * @param unknown_type $form
+ * @param unknown_type $form_state
+ * @param unknown_type $form_id
+ */
+function car_reference_form_alter(&$form, &$form_state, $form_id) {
+  // Get the field type.
+  switch ($form_id) {
+    case 'field_ui_field_edit_form':
+      $type = $form['#field']['type'];
+      break;
+    case 'field_ui_field_settings_form':
+      $type = $form['field']['type']['#value'];
+      break;
+    default:
+      return;
+  }
+
+  // Only alter car reference settings.
+  if ($type !== 'car_reference') {
+    return;
+  }
+
+  // Populate the car reference parent #options based on the $form_state so the AJAX drop down works.
+  foreach ($form['field']['settings']['allowed_values'] as $delta => &$tree) {
+    if (isset($form_state['values']['field']['settings']['allowed_values'][$delta]['vocabulary'])) {
+      $vocabulary = $form_state['values']['field']['settings']['allowed_values'][$delta]['vocabulary'];
+    }
+    else {
+      $vocabulary = $tree['vocabulary']['#default_value'];
+    }
+
+    if (isset($tree['ref_field_name']['#options'])) {
+      $tree['ref_field_name']['#options'] = _car_reference_get_taxonomy_reference_options($vocabulary);
+    }
+  }
+}
+
+/**
+ * AJAX callback to return parent field options.
+ */
+function car_reference_parent_field_selector($form, $form_state) {
+  $fieldset_name = $form_state['triggering_element']['#array_parents'][3];
+  return $form['field']['settings']['allowed_values'][$fieldset_name]['ref_field_name'];
+}
+
+/**
+ * Get select options for specified vocabulary.
+ *
+ * @param $vocabulary_name
+ */
+function _car_reference_get_taxonomy_reference_options($vocabulary_name) {
+  $vocabulary = taxonomy_vocabulary_machine_name_load($vocabulary_name);
+
+  if (!$vocabulary) {
+    return;
+  }
+
+  $options = array('' => '- Choose reference field -');
+  $vocabulary_fields = field_info_instances('taxonomy_term', $vocabulary_name);
+
+  foreach ($vocabulary_fields as $name => $field) {
+    if ($field['entity_type'] == 'taxonomy_term') {
+      $options[$name] = $name;
     }
   }
 
-  // Send the needed variables into JS.
-  $form['allowed_values']['#attached']['js'] = array(
-    array(
-      'data' => array(
-        'car_reference' => array(
-          'hasData' => $has_data,
-          'noWayToEdit' => $no_way_to_edit,
-        ),
-      ),
-      'type' => 'setting',
-    ),
-    'car_reference-field-visibility' => drupal_get_path('module', 'car_reference') . '/car_reference.admin.js',
-  );
-
-  return $form;
+  return $options;
 }
 
 /**
