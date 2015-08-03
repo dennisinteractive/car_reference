@@ -840,176 +840,104 @@ function car_reference_get_key_value_pairs($tids) {
 }
 
 /**
- * Implements hook_taxonomy_term_update().
+ * Implements hook_form_FORM_ID_alter().
  *
- * Update all the record related to car_reference field.
+ * Disable any fields that are part of a hierarchy being referenced.
  */
-function car_reference_taxonomy_term_update($term) {
-
-  $car_reference_fields = _get_car_reference_fields();
-  $act_on_vocs = array();
-  $changed = FALSE;
-
-  foreach ($car_reference_fields as $field_name) {
-    // Get the field settings data about car reference.
-    $field_conf = field_info_field($field_name);
-    $confs = $field_conf['settings']['allowed_values'];
-    // We don't need to act on make represented vocabulary.
-    $act_on_vocs[] = $confs['model_vocabulary']['vocabulary'];
-    $act_on_vocs[] = $confs['edition_vocabulary']['vocabulary'];
-  }
-
-  // The parent can be changed just for model and edition.
-  // This would mean that we should act only on this terms update
-  // in order to update node related data to that.
-  if (!in_array($term->vocabulary_machine_name, $act_on_vocs)) {
-    return;
-  }
-  $term_original = $term->original;
-
-  // Detect any changes on ref_field level.
-  foreach ($act_on_vocs as $voc_name) {
-    // Get the current value.
-    $current_field = field_get_items('taxonomy_term', $term, $confs[$voc_name . '_vocabulary']['ref_field_name']);
-    $current_field_val = !empty($current_field) ? $current_field[0]['tid'] : FALSE;
-    // Get the original value.
-    $original_current_field = field_get_items('taxonomy_term', $term_original, $confs[$voc_name . '_vocabulary']['ref_field_name']);
-    $original_current_field_val = !empty($original_current_field) ? $original_current_field[0]['tid'] : FALSE;
-
-    if ($current_field_val != $original_current_field_val) {
-      $changed = TRUE;
-      break;
+function car_reference_form_taxonomy_form_term_alter(&$form, $form_state, $form_id) {
+  foreach ($form as $field_name => &$field_item) {
+    if ($count = _car_reference_term_hierarchy_in_use($form['#entity'], $field_name)) {
+      $field_item['#disabled'] = TRUE;
+      $field_item[LANGUAGE_NONE]['#description'] .= t('Parent cannot be changed has there are %count nodes referencing this term', array(
+        '%count' => $count,
+      ));
     }
-  }
-
-  if (!$changed) {
-    return;
-  }
-
-  // Act in case the tid was changed to another tid.
-  // Fields should not be empty as they are required.
-  if ($original_current_field_val && $current_field_val) {
-    $rows_to_update = _car_reference_get_fields_rows_to_update($car_reference_fields, $original_current_field_val, $current_field_val);
-    $rows_to_update += _car_reference_get_taxonomy_rows_to_update($original_current_field_val, $current_field_val);
-  }
-
-  if (!empty($rows_to_update)) {
-    _car_reference_push_update($rows_to_update);
   }
 }
 
 /**
- * Get the rows from car_reference field type which are going to be updated,
- * after changing the relationship between make/model/edition.
+ * Check if specified field is in use.
+ *
+ * The field is considered 'in use' when a node is referencing the term current term
+ * and the provided field_name is used to reference the parent term.
+ *
+ * @param $term
+ * @param $field_name
  */
-function _car_reference_get_fields_rows_to_update($car_reference_fields, $original_current_field_val, $current_field_val) {
-  $rows_to_update = array();
+function _car_reference_term_hierarchy_in_use($term, $field_name) {
+  $field_usage = _car_reference_get_term_field_usage($term);
+  foreach ($field_usage as $field => $usage) {
+    if ($usage['ref_field_name'] == $field_name && !empty($usage['count'])) {
+      return $usage['count'];
+    }
+  }
+  return FALSE;
+}
 
-  foreach ($car_reference_fields as $field_name) {
-    $query = db_select('field_data_' . $field_name, 'fcr');
-    $query->fields('fcr');
-    // Match records related to the current modified one.
-    $db_or = db_or()
-      ->condition('fcr.' . $field_name . '_make_tid', $original_current_field_val)
-      ->condition('fcr.' . $field_name . '_model_tid', $original_current_field_val)
-      ->condition('fcr.' . $field_name . '_edition_tid', $original_current_field_val);
-    $query->condition($db_or);
+/**
+ * Return provided term usage.
+ *
+ * Total count of times referenced by a node using a term reference field.
+ *
+ * @param $term
+ */
+function _car_reference_get_term_field_usage($term) {
+  $usage = &drupal_static(__FUNCTION__);
 
-    foreach ($query->execute() as $record) {
-      // Skip scheduled records for deletion.
-      if ($record->deleted) {
-        continue;
+  // Cache the result of this function as it can be called many times.
+  if (is_array($usage)) {
+    return $usage;
+  }
+
+  $usage = array();
+
+  // Get car reference fields.
+  if ($fields = field_read_fields(array('type' => 'car_reference'))) {
+    foreach ($fields as $field_name => $field_config) {
+      // Check if there is data for the current term/parent combination.
+      foreach ($field_config['settings']['allowed_values'] as $value_key => $value_config) {
+        // Skip make as they cannot have parents.
+        if ($value_key == 'make_vocabulary') {
+          continue;
+        }
+        // Only build mapping if the current term if the configured vocabulary for this field value.
+        if ($value_config['vocabulary'] !== $term->vocabulary_machine_name) {
+          continue;
+        }
+        // Continue if there is no parent term being referenced.
+        if (!isset($term->{$value_config['ref_field_name']}[LANGUAGE_NONE][0]['tid'])) {
+          continue;
+        }
+        // Get the parent/child mapping for this term for this field.
+        switch ($value_key) {
+          case 'model_vocabulary':
+            $tid_column = $field_name . '_model_tid';
+            $parent_tid_column = $field_name . '_make_tid';
+            break;
+          case 'edition_vocabulary':
+            $tid_column = $field_name . '_edition_tid';
+            $parent_tid_column = $field_name . '_model_tid';
+            break;
+        }
+        // Check field usage for current term/parent combination.
+        $query = db_select('field_data_' . $field_name);
+        $query->addExpression('COUNT(1)', 'field_usage_count');
+        $query->condition($tid_column, $term->tid);
+        $query->condition($parent_tid_column, $term->{$value_config['ref_field_name']}[LANGUAGE_NONE][0]['tid']);
+        $result = $query->execute();
+        $row = $result->fetchObject();
+
+        // Add usage for the specified field.
+        $usage[$field_name] = array(
+          'count' => (int) $row->field_usage_count,
+          // Returning the parent ref field as this is useful to validate/lock fields.
+          'ref_field_name' => $value_config['ref_field_name'],
+        );
       }
-
-      // Shut down the warning here, because not all car references entities
-      // are required(edition->make->model) - some of them may be NULL which
-      // cause an warning when using array_flip, but we can be sure we are
-      // processing correct data as conditions was applied into mysql query.
-      $related_record = @array_flip((array) $record);
-
-      $rows_to_update['field_data_' . $field_name] = array(
-        'table' => 'field_data_' . $field_name,
-        'update_column_name' => $related_record[$original_current_field_val],
-        'update_column_value' => $current_field_val,
-        'update_original_column_value' => $original_current_field_val,
-      );
-
-      // One result is enough in order to update all the records.
-      break 1;
     }
   }
-
-  return $rows_to_update;
+  return $usage;
 }
-
-/**
- * Get the rows from taxonomy_index table which are going to be updated,
- * after changing the relationship between make/model/edition.
- */
-function _car_reference_get_taxonomy_rows_to_update($original_current_field_val, $current_field_val) {
-  $rows_to_update = $rows_id = array();
-
-  $query = db_select('taxonomy_index', 'ti');
-  $query->fields('ti');
-  // Match records related to the current modified one.
-  $query->condition('ti.tid', $original_current_field_val);
-
-  foreach ($query->execute() as $record) {
-    $rows_id[] = $record->nid;
-    $rows_to_update['taxonomy_index'] = array(
-      'table' => 'taxonomy_index',
-      'update_column_name' => 'tid',
-      'update_column_value' => $current_field_val,
-      'update_original_column_value' => $original_current_field_val,
-    );
-  }
-
-  // Store all the ids in order to clear the entity cache.
-  $rows_to_update['taxonomy_index']['entity_ids_updated'] = $rows_id;
-
-  return $rows_to_update;
-}
-
-/**
- * Get the fields using car_reference field type.
- */
-function _get_car_reference_fields() {
-  static $fields;
-
-  // Query ran, return whatever is in the results
-  if (is_array($fields)) {
-    return $fields;
-  }
-
-  $query = db_select('field_config', 'fc');
-  $query->fields('fc', array('field_name', 'data'));
-  $query->condition('fc.type', 'car_reference');
-  $query->condition('fc.storage_type', 'field_sql_storage');
-  return $fields = $query->execute()->fetchCol();
-}
-
-/**
- * Update all detected rows.
- */
-function _car_reference_push_update($rows_to_update) {
-  // Loop through the tables.
-  foreach ($rows_to_update as $row) {
-    db_update($row['table'])
-      ->fields(array($row['update_column_name'] => $row['update_column_value']))
-      ->condition($row['update_column_name'], $row['update_original_column_value'])
-      ->expression($row['update_column_name'], 'replace(' . $row['update_column_name'] . ', :old_val, :new_val)', array(
-        ':old_val' => $row['update_original_column_value'],
-        ':new_val' => $row['update_column_value'],
-      ))
-      ->execute();
-
-    // Clear the nodes cache.
-    if (!empty($row['entity_ids_updated'])) {
-      entity_get_controller('node')->resetCache($row['entity_ids_updated']);
-    }
-  }
-}
-
 
 /**
  * Get the node "Car reference" structured unique data.

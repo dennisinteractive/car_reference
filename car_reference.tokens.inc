@@ -17,7 +17,8 @@ function car_reference_token_info() {
   );
 
   // Car reference specific tokens.
-  foreach (_get_car_reference_fields() as $field_name) {
+  $fields = field_read_fields(array('type' => 'car_reference'));
+  foreach ($fields as $field_name => $field_config) {
     $car_references[$field_name . '_make_name'] = array(
       'name' => t('Make name'),
       'description' => t('Make name.'),
