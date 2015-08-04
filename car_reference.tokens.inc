@@ -6,21 +6,22 @@
  */
 
 /**
- * Implements hook_token_info_alter().
+ * Implements hook_token_info().
  */
-function car_reference_token_info_alter(&$data) {
+function car_reference_token_info() {
   $fields = field_read_fields(array('type' => 'car_reference'));
   foreach ($fields as $field_name => $field_config) {
     foreach ($field_config['settings']['allowed_values'] as $key => $settings) {
       $vocabulary = $settings['vocabulary'];
       // Expose the car reference term tokens.
-      $data['tokens']['node'][$field_name . '_' . $vocabulary] = array(
+      $info['tokens']['node'][$field_name . '_' . $vocabulary] = array(
         'name' => $field_name . ' ' . ucwords($vocabulary),
         'description' => 'Field "' . $field_name . '" reference to ' . ucwords($vocabulary),
         'type' => 'term',
       );
     }
   }
+  return $info;
 }
 
 /**
