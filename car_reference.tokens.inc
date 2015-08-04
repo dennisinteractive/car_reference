@@ -19,32 +19,15 @@ function car_reference_token_info() {
   // Car reference specific tokens.
   $fields = field_read_fields(array('type' => 'car_reference'));
   foreach ($fields as $field_name => $field_config) {
-    $car_references[$field_name . '_make_name'] = array(
-      'name' => t('Make name'),
-      'description' => t('Make name.'),
-    );
-    $car_references[$field_name . '_make_name_url'] = array(
-      'name' => t('Make name for URLs'),
-      'description' => t('Make name value for use in URLs.'),
-    );
-
-    $car_references[$field_name . '_model_name'] = array(
-      'name' => t('Model name'),
-      'description' => t('Model name.'),
-    );
-    $car_references[$field_name . '_model_name_url'] = array(
-      'name' => t('Model name for URLs'),
-      'description' => t('Model name value for use in URLs.'),
-    );
-
-    $car_references[$field_name . '_edition_name'] = array(
-      'name' => t('Edition name'),
-      'description' => t('Edition name.'),
-    );
-    $car_references[$field_name . '_edition_name_url'] = array(
-      'name' => t('Edition name for URLs'),
-      'description' => t('Edition name value for use in URLs.'),
-    );
+    foreach ($field_config['settings']['allowed_values'] as $key => $settings) {
+      $vocabulary = $settings['vocabulary'];
+      // Expose the term name token.
+      $car_references[$field_name . '_' . $vocabulary] = array(
+        'name' => ucwords($vocabulary),
+        'description' => ucwords($vocabulary),
+        'type' => 'term',
+      );
+    }
   }
 
   return array(
@@ -64,43 +47,29 @@ function car_reference_tokens($type, $tokens, array $data = array(), array $opti
   if ($type == 'car_reference' && !empty($data['node'])) {
     $node = $data['node'];
     // Provide replacement values for every possible car_reference field type.
-    foreach (_get_car_reference_fields() as $field_name) {
+    $fields = field_read_fields(array('type' => 'car_reference'));
+    foreach ($fields as $field_name => $field_config) {
       $car_reference_data = car_reference_get_node_car_reference_data($node, $field_name);
       foreach ($tokens as $name => $original) {
-        $token_name = str_replace($field_name . '_', '', $name);
-        switch ($token_name) {
-          case 'make_name':
-          case 'make_name_url':
-            if (!empty($car_reference_data['make'])) {
-              $term = reset($car_reference_data['make']);
-              $replacements[$original] = $term['name'];
+        $fields = field_read_fields(array('type' => 'car_reference'));
+        foreach ($fields as $field_name => $field_config) {
+          // Expose tokens for each of the car terms referenced.
+          foreach ($field_config['settings']['allowed_values'] as $key => $settings) {
+            // Get vocabulary for this field value.
+            $vocabulary = $settings['vocabulary'];
+            // Don't process token if term data isn't available.
+            if (!isset($car_reference_data[$vocabulary])) {
+              continue;
             }
-            break;
-
-          case 'model_name':
-          case 'model_name_url':
-            if (!empty($car_reference_data['model'])) {
-              $term = reset($car_reference_data['model']);
-              $replacements[$original] = $term['name'];
+            // Convert to term token and replace.
+            $token_parts = explode(':', $name);
+            $token_prefix = array_shift($token_parts);
+            if ($token_prefix == $field_name . '_' . $vocabulary) {
+              $term_token = '[term:' . implode(':', $token_parts) . ']';
+              $replacements[$original] = token_replace($term_token, array('taxonomy_term' => $car_reference_data[$vocabulary]));
             }
-            break;
-
-          case 'edition_name':
-          case 'edition_name_url':
-            if (!empty($car_reference_data['edition'])) {
-              $term = reset($car_reference_data['edition']);
-              $replacements[$original] = $term['name'];
-            }
-            break;
-        }
-
-        if (!empty($replacements[$original]) && strpos($name, '_name_url') !== FALSE) {
-          if (!function_exists('pathauto_cleanstring')) {
-            module_load_include('inc', 'pathauto');
           }
-          $replacements[$original] = pathauto_cleanstring($replacements[$original]);
         }
-
       }
     }
   }

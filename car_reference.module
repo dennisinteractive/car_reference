@@ -65,8 +65,6 @@ function car_reference_field_info() {
           'edition' => 'edition',
         ),
       ),
-      // Support hook_entity_property_info() from contrib "Entity API".
-      'property_type' => 'taxonomy_term',
     ),
   );
 }
@@ -959,23 +957,18 @@ function _car_reference_get_term_field_usage($term) {
  */
 function car_reference_get_node_car_reference_data($node, $field = '', $options = array()) {
   $data = array();
-  $append_bodystyle = TRUE;
 
-  if (isset($options['append_bodystyle']) && $options['append_bodystyle'] === FALSE) {
-    $append_bodystyle = FALSE;
-  }
-
-  $options['append_bodystyle'] = TRUE;
   $fields = field_info_instances('node', $node->type);
 
   // Limit to requested field if found.
-  if (is_string($field) && !empty($node_fields[$field])) {
+  if (is_string($field) && !empty($fields[$field])) {
     $fields = array($field => $field);
   }
 
   foreach ($fields as $field_name => $field_instance) {
     $field_info = field_info_field($field_name);
     $field_items = field_get_items('node', $node, $field_name);
+
     // Only check car reference fields that have data.
     if ($field_info['type'] !== 'car_reference' || !is_array($field_items)) {
       continue;
@@ -984,21 +977,13 @@ function car_reference_get_node_car_reference_data($node, $field = '', $options 
     // Store available data.
     foreach ($field_items as $field_item) {
       if (isset($field_item['edition_tid']) && $term = taxonomy_term_load($field_item['edition_tid'])) {
-        $data['edition'][$term->tid]['tid'] = $term->tid;
-        $data['edition'][$term->tid]['name'] = $term->name;
-        // Additional parameter used adTag.
-        if ($append_bodystyle && $short_title = carbuyer_site_get_field_value('taxonomy_term', $term, 'field_edition_review_short_title')) {
-          $data['bodystyle'][$term->tid]['tid'] = $term->tid;
-          $data['bodystyle'][$term->tid]['name'] = $short_title;
-        }
+        $data['edition'] = $term;
       }
       if (isset($field_item['model_tid']) && $term = taxonomy_term_load($field_item['model_tid'])) {
-        $data['model'][$term->tid]['tid'] = $term->tid;
-        $data['model'][$term->tid]['name'] = $term->name;
+        $data['model'] = $term;
       }
       if (isset($field_item['make_tid']) && $term = taxonomy_term_load($field_item['make_tid'])) {
-        $data['make'][$term->tid]['tid'] = $term->tid;
-        $data['make'][$term->tid]['name'] = $term->name;
+        $data['make'] = $term;
       }
     }
   }
