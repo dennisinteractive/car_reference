@@ -955,7 +955,14 @@ function _car_reference_get_term_field_usage($term) {
  * @notice: This function is going to be modified/improved according
  * to the necessity which will appear.
  */
-function car_reference_get_node_car_reference_data($node, $field = '', $options = array()) {
+function car_reference_get_node_car_reference_data($node, $field = '') {
+  $data = &drupal_static(implode(':', array(__FUNCTION__, $node->nid, $field)));
+
+  // Return data if it is already loaded.
+  if (is_array($data)) {
+    return $data;
+  }
+
   $data = array();
 
   $fields = field_info_instances('node', $node->type);
@@ -975,15 +982,15 @@ function car_reference_get_node_car_reference_data($node, $field = '', $options 
     }
 
     // Store available data.
-    foreach ($field_items as $field_item) {
+    foreach ($field_items as $delta => $field_item) {
       if (isset($field_item['edition_tid']) && $term = taxonomy_term_load($field_item['edition_tid'])) {
-        $data['edition'] = $term;
+        $data[$field_name][$delta]['edition'] = $term;
       }
       if (isset($field_item['model_tid']) && $term = taxonomy_term_load($field_item['model_tid'])) {
-        $data['model'] = $term;
+        $data[$field_name][$delta]['model'] = $term;
       }
       if (isset($field_item['make_tid']) && $term = taxonomy_term_load($field_item['make_tid'])) {
-        $data['make'] = $term;
+        $data[$field_name][$delta]['make'] = $term;
       }
     }
   }

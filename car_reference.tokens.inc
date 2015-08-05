@@ -35,22 +35,22 @@ function car_reference_tokens($type, $tokens, array $data = array(), array $opti
     // Provide replacement values for every possible car_reference field type.
     $fields = field_read_fields(array('type' => 'car_reference'));
     foreach ($fields as $field_name => $field_config) {
-      $car_reference_data = car_reference_get_node_car_reference_data($node, $field_name);
       foreach ($tokens as $name => $original) {
         // Expose tokens for each of the car terms referenced.
         foreach ($field_config['settings']['allowed_values'] as $key => $settings) {
           // Get vocabulary for this field value.
           $vocabulary = $settings['vocabulary'];
-          // Don't process token if term data isn't available.
-          if (!isset($car_reference_data[$vocabulary])) {
-            continue;
-          }
-          // Convert to term token and replace.
+          // Check if this is a car reference token.
           $token_parts = explode(':', $name);
           $token_prefix = array_shift($token_parts);
           if ($token_prefix == $field_name . '_' . $vocabulary) {
-            $term_token = '[term:' . implode(':', $token_parts) . ']';
-            $replacements[$original] = token_replace($term_token, array('taxonomy_term' => $car_reference_data[$vocabulary]));
+            // Don't process token if term data isn't available.
+            $car_reference_data = car_reference_get_node_car_reference_data($node, $field_name);
+            if (isset($car_reference_data[$field_name][0][$vocabulary])) {
+              // Convert to term token and replace.
+              $term_token = '[term:' . implode(':', $token_parts) . ']';
+              $replacements[$original] = token_replace($term_token, array('taxonomy_term' => $car_reference_data[$field_name][0][$vocabulary]));
+            }
           }
         }
       }
