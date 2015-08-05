@@ -1,5 +1,5 @@
 name = Car reference field
 description = This field stores a reference to a make, model and edition taxonomy term.
-package = Auto Express
+package = Fields
 core = 7.x
 dependencies[] = text
