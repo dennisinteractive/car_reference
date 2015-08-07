@@ -807,37 +807,6 @@ function car_reference_build_node_index($node) {
 }
 
 /**
- * Returns the key value pairs of the given tids for use in adtags etc.
- *
- * @param array $tids
- *   Taxonomy term IDs.
- *
- * @return array $kvp
- *   The Key Value Pairs array.
- */
-function car_reference_get_key_value_pairs($tids) {
-  $kvp = array();
-  $terms = taxonomy_term_load_multiple($tids);
-  foreach ($terms as $term) {
-    switch ($term->vocabulary_machine_name) {
-      case 'make':
-      case 'model':
-        $kvp[$term->vocabulary_machine_name][] = $term->name;
-        break;
-
-      case 'edition':
-        $kvp[$term->vocabulary_machine_name][] = $term->name;
-        // Get the body style from the edition name.
-        $field = field_get_items('taxonomy_term', $term, 'field_short_name');
-        $kvp['bodystyle'][] = $field[0]['value'];
-        break;
-    }
-  }
-
-  return $kvp;
-}
-
-/**
  * Implements hook_form_FORM_ID_alter().
  *
  * Disable any fields that are part of a hierarchy being referenced.
