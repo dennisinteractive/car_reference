@@ -812,6 +812,9 @@ function car_reference_build_node_index($node) {
  * Disable any fields that are part of a hierarchy being referenced.
  */
 function car_reference_form_taxonomy_form_term_alter(&$form, $form_state, $form_id) {
+  if (!isset($form['#entity'])) {
+    return;
+  }
   foreach ($form as $field_name => &$field_item) {
     if ($count = _car_reference_term_hierarchy_in_use($form['#entity'], $field_name)) {
       $field_item['#disabled'] = TRUE;
