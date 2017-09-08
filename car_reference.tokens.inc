@@ -81,7 +81,7 @@ function car_reference_fields() {
 
   // Get it from the db.
   $fields = field_read_fields(array('type' => 'car_reference'));
-  error_log("$cid\n", 3, "/tmp/peter.log");
+
   // Cache it.
   cache_set($cid, $fields, CACHE_TEMPORARY);
 
