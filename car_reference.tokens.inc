@@ -9,7 +9,7 @@
  * Implements hook_token_info().
  */
 function car_reference_token_info() {
-  $fields = field_read_fields(array('type' => 'car_reference'));
+  $fields = car_reference_fields();
   foreach ($fields as $field_name => $field_config) {
     foreach ($field_config['settings']['allowed_values'] as $key => $settings) {
       $vocabulary = $settings['vocabulary'];
@@ -33,7 +33,7 @@ function car_reference_tokens($type, $tokens, array $data = array(), array $opti
   if ($type == 'node' && !empty($data['node'])) {
     $node = $data['node'];
     // Provide replacement values for every possible car_reference field type.
-    $fields = field_read_fields(array('type' => 'car_reference'));
+    $fields = car_reference_fields();
     foreach ($fields as $field_name => $field_config) {
       foreach ($tokens as $name => $original) {
         // Expose tokens for each of the car terms referenced.
@@ -58,4 +58,32 @@ function car_reference_tokens($type, $tokens, array $data = array(), array $opti
   }
 
   return $replacements;
+}
+
+/**
+ * Fields that are of type 'car_reference'.
+ * Cached result of field_read_fields(array('type' => 'car_reference'));
+ */
+function car_reference_fields() {
+  static $fields;
+
+  // Use the static cache.
+  if (!is_null($fields)) {
+    return $fields;
+  }
+
+  // Use the memcache.
+  $cid = __FUNCTION__;
+  if ($cache = cache_get($cid)) {
+    $fields = $cache->data;
+    return $fields;
+  }
+
+  // Get it from the db.
+  $fields = field_read_fields(array('type' => 'car_reference'));
+
+  // Cache it.
+  cache_set($cid, $fields, CACHE_TEMPORARY);
+
+  return $fields;
 }
