@@ -862,7 +862,7 @@ function _car_reference_get_term_field_usage($term) {
   $usage = array();
 
   // Get car reference fields.
-  if ($fields = field_read_fields(array('type' => 'car_reference'))) {
+  if ($fields = car_reference_fields()) {
     foreach ($fields as $field_name => $field_config) {
       // Check if there is data for the current term/parent combination.
       foreach ($field_config['settings']['allowed_values'] as $value_key => $value_config) {
