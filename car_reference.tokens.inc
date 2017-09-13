@@ -74,7 +74,7 @@ function car_reference_fields() {
 
   // Use the memcache.
   $cid = __FUNCTION__;
-  if ($cache = cache_get($cid)) {
+  if ($cache = cache_get($cid, 'cache')) {
     $fields = $cache->data;
     return $fields;
   }
@@ -83,7 +83,7 @@ function car_reference_fields() {
   $fields = field_read_fields(array('type' => 'car_reference'));
 
   // Cache it.
-  cache_set($cid, $fields, CACHE_TEMPORARY);
+  cache_set($cid, $fields, 'cache', CACHE_TEMPORARY);
 
   return $fields;
 }
