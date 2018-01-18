@@ -584,6 +584,13 @@ function car_reference_field_is_empty($item, $field) {
   return FALSE;
 }
 
+/**
+ * Allows other modules to modify the car names.
+ *
+ * @param $tid
+ *
+ * @return string
+ */
 function car_reference_autocomplete_modifier($tid) {
   $modifiers = module_invoke_all('car_reference_autocomplete_modifier', $tid);
 
@@ -613,24 +620,7 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     foreach ($choose_from as $machine_name => $allowed) {
       if ($allowed) {
         if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          $search_name = preg_replace("|(.*?)\[.*?\]|", "$1", $field_value);
-          $search_name = trim($search_name);
-          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $search_name, 'vid' => $vocabulary->vid))) {
-
-            foreach ($possibilities as $tid => $term) {
-              $suffix = car_reference_autocomplete_modifier($tid);
-              if ($field_value == $search_name . $suffix) {
-                $match_term = $term;
-              }
-            }
-            if (isset($match_term)) {
-              $term = $match_term;
-            }
-            else {
-              $term = array_pop($possibilities);
-            }
-            break;
-          }
+          $term = car_reference_get_autocomplete_term($field_value, $vocabulary);
         }
       }
     }
@@ -672,6 +662,34 @@ function car_reference_autocomplete_validate($element, &$form_state) {
   array_pop($element['#parents']);
 
   form_set_value($element, $value, $form_state);
+}
+
+/**
+ * Gets the term for the value in the autocomplete field.
+ *
+ * @param      $name
+ *    The term name to be searched.
+ * @param null $vocabulary
+ *    The vocabulary.
+ *
+ * @return mixed Returns the term that matches the search.
+ */
+function car_reference_get_autocomplete_term($name, $vocabulary = NULL) {
+  $search_name = trim(preg_replace("|(.*?)\[.*?\]|", "$1", $name));
+  $options = array();
+  if (!empty($search_name)) $options['name'] = $search_name;
+  if (!empty($vocabulary)) $options['vid'] = $vocabulary->vid;
+
+  if ($possibilities = taxonomy_term_load_multiple(array(), $options)) {
+    foreach ($possibilities as $tid => $term) {
+      $suffix = car_reference_autocomplete_modifier($tid);
+      if ($name == $search_name . $suffix) {
+        return $term;
+      }
+    }
+
+    return array_pop($possibilities);
+  }
 }
 
 /**
