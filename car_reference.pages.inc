@@ -25,7 +25,7 @@
  *     "red fish, blue moon": "blue moon",
  *   };
  * @endcode
- * 
+ *
  * @param string $entity_type
  *   The entity this field is attached to.
  *
@@ -124,7 +124,9 @@ function car_reference_autocomplete($entity_type, $bundle, $field_name, $tags_ty
       if (strpos($name, ',') !== FALSE || strpos($name, '"') !== FALSE) {
         $n = '"' . str_replace('"', '""', $name) . '"';
       }
-      $matches[$prefix . $n] = check_plain($name);
+      $suffix = car_reference_autocomplete_modifier($tid);
+
+      $matches[$prefix . $n . $suffix] = check_plain($name . $suffix);
     }
   }
 

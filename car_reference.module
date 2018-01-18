@@ -555,10 +555,12 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         $term = isset($items[$delta]['taxonomy_term']) ? $items[$delta]['taxonomy_term'] : taxonomy_term_load($items[$delta]['make_tid']);
       }
 
+      $suffix = car_reference_autocomplete_modifier($term->tid);
+
       // Use a fake element to store the term name value.
       $element['taxonomy_term'] = array(
           '#type' => 'textfield',
-          '#default_value' => (isset($term->name)) ? $term->name : '',
+          '#default_value' => (isset($term->name)) ? $term->name . $suffix : '',
           '#autocomplete_path' => $instance['widget']['settings']['autocomplete_path'] . '/' . $instance['entity_type'] . '/' . $instance['bundle'] . '/' . $field['field_name'],
           '#size' => $instance['widget']['settings']['size'],
           '#maxlength' => 1024,
@@ -578,6 +580,15 @@ function car_reference_field_is_empty($item, $field) {
     return TRUE;
   }
   return FALSE;
+}
+
+function car_reference_autocomplete_modifier($tid) {
+  $modifiers = module_invoke_all('car_reference_autocomplete_modifier', $tid);
+
+  if (!empty($modifiers)) {
+    return ' [' . implode(',', $modifiers) . ']';
+  }
+  return '';
 }
 
 /**
@@ -600,8 +611,22 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     foreach ($choose_from as $machine_name => $allowed) {
       if ($allowed) {
         if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $field_value, 'vid' => $vocabulary->vid))) {
-            $term = array_pop($possibilities);
+          $search_name = preg_replace("|(.*?)\[.*?\]|", "$1", $field_value);
+          $search_name = trim($search_name);
+          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $search_name, 'vid' => $vocabulary->vid))) {
+
+            foreach ($possibilities as $tid => $term) {
+              $suffix = car_reference_autocomplete_modifier($tid);
+              if ($field_value == $search_name . $suffix) {
+                $match_term = $term;
+              }
+            }
+            if (isset($match_term)) {
+              $term = $match_term;
+            }
+            else {
+              $term = array_pop($possibilities);
+            }
             break;
           }
         }
@@ -640,7 +665,6 @@ function car_reference_autocomplete_validate($element, &$form_state) {
       }
     }
   }
-
   // Autocomplete uses a fake element so the values needs to be added
   // to the delta and not the element.
   array_pop($element['#parents']);
@@ -661,7 +685,6 @@ function car_reference_autocomplete_validate($element, &$form_state) {
  *   The value is not part of the list of allowed values.
  */
 function car_reference_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
-
   foreach ($items as $delta => $item) {
 
     $validate = TRUE;
