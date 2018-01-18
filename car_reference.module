@@ -595,8 +595,9 @@ function car_reference_autocomplete_modifier($tid) {
   $modifiers = module_invoke_all('car_reference_autocomplete_modifier', $tid);
 
   if (!empty($modifiers)) {
-    return ' [' . implode(',', $modifiers) . ']';
+    return ' [' . implode(', ', $modifiers) . ']';
   }
+
   return '';
 }
 
@@ -619,9 +620,7 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     $choose_from = array_reverse($field_instance['settings']['choose_from'], TRUE);
     foreach ($choose_from as $machine_name => $allowed) {
       if ($allowed) {
-        if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          $term = car_reference_get_autocomplete_term($field_value, $vocabulary);
-        }
+        $term = car_reference_get_autocomplete_term($field_value);
       }
     }
 
@@ -669,17 +668,13 @@ function car_reference_autocomplete_validate($element, &$form_state) {
  *
  * @param      $name
  *    The term name to be searched.
- * @param null $vocabulary
- *    The vocabulary.
  *
  * @return mixed Returns the term that matches the search.
  */
-function car_reference_get_autocomplete_term($name, $vocabulary = NULL) {
+function car_reference_get_autocomplete_term($name) {
   $search_name = trim(preg_replace("|(.*?)\[.*?\]|", "$1", $name));
   $options = array();
   if (!empty($search_name)) $options['name'] = $search_name;
-  if (!empty($vocabulary)) $options['vid'] = $vocabulary->vid;
-
   if ($possibilities = taxonomy_term_load_multiple(array(), $options)) {
     foreach ($possibilities as $tid => $term) {
       $suffix = car_reference_autocomplete_modifier($tid);
