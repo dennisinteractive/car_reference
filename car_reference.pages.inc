@@ -93,7 +93,7 @@ function car_reference_autocomplete($entity_type, $bundle, $field_name, $tags_ty
     }
     // We must have at least one vocab to select terms from.
     if (empty($vids)) {
-      print t('No valid vocabualaries to get terms from for this field instance. Allow either make, model or edition.');
+      print t('No valid vocabularies to get terms from for this field instance. Allow either make, model or edition.');
       exit;
     }
 

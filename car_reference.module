@@ -143,9 +143,9 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
 /**
  * Implements hook_form_FORM_ID_alter().
  *
- * @param unknown_type $form
- * @param unknown_type $form_state
- * @param unknown_type $form_id
+ * @param array $form
+ * @param array $form_state
+ * @param array $form_id
  */
 function car_reference_form_alter(&$form, &$form_state, $form_id) {
   // Get the field type.
@@ -218,26 +218,28 @@ function _car_reference_get_taxonomy_reference_options($vocabulary_name) {
 function car_reference_field_instance_settings_form($field, $instance) {
   // Option to restrict which vocabs can be selected.
   // This is used for the autocomplete widget to restrict results.
-  if ($field['type'] == 'car_reference') {
-    // Prepare default values.
-    foreach ($instance['settings']['choose_from'] as $vocab) {
-      if ($vocab) {
-        $defaults[] = $vocab;
-      }
-    }
-    $form['choose_from'] = array(
-      '#type' => 'checkboxes',
-      '#options' => array(
-        'make' => t('Make'),
-        'model' => t('Model'),
-        'edition' => t('Edition'),
-      ),
-      '#title' => t('Choose which vocab users can choose from'),
-      '#description' => t('Please select at least one vocab to choose results from. Currently only used for autocomplete widget.'),
-      '#default_value' => $defaults,
-      '#element_validate' => array('_choose_from_vocab_validate'),
-    );
+  if ($field['type'] != 'car_reference') {
+    return;
   }
+
+  // Prepare default values.
+  foreach ($instance['settings']['choose_from'] as $vocab) {
+    if ($vocab) {
+      $defaults[] = $vocab;
+    }
+  }
+  $form['choose_from'] = array(
+    '#type' => 'checkboxes',
+    '#options' => array(
+      'make' => t('Make'),
+      'model' => t('Model'),
+      'edition' => t('Edition'),
+    ),
+    '#title' => t('Choose which vocab users can choose from'),
+    '#description' => t('Please select at least one vocab to choose results from. Currently only used for autocomplete widget.'),
+    '#default_value' => $defaults,
+    '#element_validate' => array('_choose_from_vocab_validate'),
+  );
 
   return $form;
 }
@@ -573,7 +575,7 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
 }
 
 /**
- * Impliments hook_field_is_empty().
+ * Implements hook_field_is_empty().
  */
 function car_reference_field_is_empty($item, $field) {
   if (!is_array($item) || empty($item['make_tid']) || (string) $item['make_tid'] == '0') {
@@ -945,7 +947,7 @@ function _car_reference_get_term_field_usage($term) {
  *   Additional options.
  *
  * @return array
- *   Grouped array with car_referece data.
+ *   Grouped array with car_reference data.
  *
  * @notice: This function is going to be modified/improved according
  * to the necessity which will appear.

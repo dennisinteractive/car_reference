@@ -21,6 +21,7 @@ function car_reference_token_info() {
       );
     }
   }
+
   return $info;
 }
 
