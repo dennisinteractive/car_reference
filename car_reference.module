@@ -143,9 +143,9 @@ function car_reference_field_settings_form($field, $instance, $has_data) {
 /**
  * Implements hook_form_FORM_ID_alter().
  *
- * @param unknown_type $form
- * @param unknown_type $form_state
- * @param unknown_type $form_id
+ * @param array $form
+ * @param array $form_state
+ * @param array $form_id
  */
 function car_reference_form_alter(&$form, &$form_state, $form_id) {
   // Get the field type.
@@ -218,26 +218,28 @@ function _car_reference_get_taxonomy_reference_options($vocabulary_name) {
 function car_reference_field_instance_settings_form($field, $instance) {
   // Option to restrict which vocabs can be selected.
   // This is used for the autocomplete widget to restrict results.
-  if ($field['type'] == 'car_reference') {
-    // Prepare default values.
-    foreach ($instance['settings']['choose_from'] as $vocab) {
-      if ($vocab) {
-        $defaults[] = $vocab;
-      }
-    }
-    $form['choose_from'] = array(
-      '#type' => 'checkboxes',
-      '#options' => array(
-        'make' => t('Make'),
-        'model' => t('Model'),
-        'edition' => t('Edition'),
-      ),
-      '#title' => t('Choose which vocab users can choose from'),
-      '#description' => t('Please select at least one vocab to choose results from. Currently only used for autocomplete widget.'),
-      '#default_value' => $defaults,
-      '#element_validate' => array('_choose_from_vocab_validate'),
-    );
+  if ($field['type'] != 'car_reference') {
+    return;
   }
+
+  // Prepare default values.
+  foreach ($instance['settings']['choose_from'] as $vocab) {
+    if ($vocab) {
+      $defaults[] = $vocab;
+    }
+  }
+  $form['choose_from'] = array(
+    '#type' => 'checkboxes',
+    '#options' => array(
+      'make' => t('Make'),
+      'model' => t('Model'),
+      'edition' => t('Edition'),
+    ),
+    '#title' => t('Choose which vocab users can choose from'),
+    '#description' => t('Please select at least one vocab to choose results from. Currently only used for autocomplete widget.'),
+    '#default_value' => $defaults,
+    '#element_validate' => array('_choose_from_vocab_validate'),
+  );
 
   return $form;
 }
@@ -555,10 +557,12 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
         $term = isset($items[$delta]['taxonomy_term']) ? $items[$delta]['taxonomy_term'] : taxonomy_term_load($items[$delta]['make_tid']);
       }
 
+      $suffix = car_reference_autocomplete_modifier($term->tid);
+
       // Use a fake element to store the term name value.
       $element['taxonomy_term'] = array(
           '#type' => 'textfield',
-          '#default_value' => (isset($term->name)) ? $term->name : '',
+          '#default_value' => (isset($term->name)) ? $term->name . $suffix : '',
           '#autocomplete_path' => $instance['widget']['settings']['autocomplete_path'] . '/' . $instance['entity_type'] . '/' . $instance['bundle'] . '/' . $field['field_name'],
           '#size' => $instance['widget']['settings']['size'],
           '#maxlength' => 1024,
@@ -571,13 +575,30 @@ function car_reference_field_widget_form(&$form, &$form_state, $field, $instance
 }
 
 /**
- * Impliments hook_field_is_empty().
+ * Implements hook_field_is_empty().
  */
 function car_reference_field_is_empty($item, $field) {
   if (!is_array($item) || empty($item['make_tid']) || (string) $item['make_tid'] == '0') {
     return TRUE;
   }
   return FALSE;
+}
+
+/**
+ * Allows other modules to modify the car names.
+ *
+ * @param $tid
+ *
+ * @return string
+ */
+function car_reference_autocomplete_modifier($tid) {
+  $modifiers = module_invoke_all('car_reference_autocomplete_modifier', $tid);
+
+  if (!empty($modifiers)) {
+    return ' [' . implode(', ', $modifiers) . ']';
+  }
+
+  return '';
 }
 
 /**
@@ -599,12 +620,7 @@ function car_reference_autocomplete_validate($element, &$form_state) {
     $choose_from = array_reverse($field_instance['settings']['choose_from'], TRUE);
     foreach ($choose_from as $machine_name => $allowed) {
       if ($allowed) {
-        if ($vocabulary = taxonomy_vocabulary_machine_name_load($machine_name)) {
-          if ($possibilities = taxonomy_term_load_multiple(array(), array('name' => $field_value, 'vid' => $vocabulary->vid))) {
-            $term = array_pop($possibilities);
-            break;
-          }
-        }
+        $term = car_reference_get_autocomplete_term($field_value);
       }
     }
 
@@ -640,12 +656,35 @@ function car_reference_autocomplete_validate($element, &$form_state) {
       }
     }
   }
-
   // Autocomplete uses a fake element so the values needs to be added
   // to the delta and not the element.
   array_pop($element['#parents']);
 
   form_set_value($element, $value, $form_state);
+}
+
+/**
+ * Gets the term for the value in the autocomplete field.
+ *
+ * @param      $name
+ *    The term name to be searched.
+ *
+ * @return mixed Returns the term that matches the search.
+ */
+function car_reference_get_autocomplete_term($name) {
+  $search_name = trim(preg_replace("|(.*?)\[.*?\]|", "$1", $name));
+  $options = array();
+  if (!empty($search_name)) $options['name'] = $search_name;
+  if ($possibilities = taxonomy_term_load_multiple(array(), $options)) {
+    foreach ($possibilities as $tid => $term) {
+      $suffix = car_reference_autocomplete_modifier($tid);
+      if ($name == $search_name . $suffix) {
+        return $term;
+      }
+    }
+
+    return array_pop($possibilities);
+  }
 }
 
 /**
@@ -661,7 +700,6 @@ function car_reference_autocomplete_validate($element, &$form_state) {
  *   The value is not part of the list of allowed values.
  */
 function car_reference_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
-
   foreach ($items as $delta => $item) {
 
     $validate = TRUE;
@@ -922,7 +960,7 @@ function _car_reference_get_term_field_usage($term) {
  *   Additional options.
  *
  * @return array
- *   Grouped array with car_referece data.
+ *   Grouped array with car_reference data.
  *
  * @notice: This function is going to be modified/improved according
  * to the necessity which will appear.
